@@ -2,11 +2,129 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/fsouza/go-dockerclient"
 )
+
+type DockerClient interface {
+	Images() (map[string]string, error)
+	Environments() ([]Environment, error)
+}
+
+type RealDockerClient struct {
+	dcl *docker.Client
+}
+
+type TestDockerClient struct {
+}
+
+type Image struct {
+}
+
+type Port struct {
+	HostIp        string
+	HostPort      int64
+	ContainerPort int64
+	Type          string
+}
+
+type Container struct {
+	Name    string
+	Image   string
+	Running bool
+	Ports   []Port
+}
+
+type Environment struct {
+	Name      string
+	Container Container
+}
+
+func (rdc *RealDockerClient) Images() (map[string]string, error) {
+	images := make(map[string]string)
+
+	images["foo"] = "bar"
+	clientImages, err := rdc.dcl.ListImages(docker.ListImagesOptions{})
+	if err != nil {
+		return images, err
+	}
+
+	for _, image := range clientImages {
+		fmt.Println(image)
+	}
+
+	return images, nil
+}
+
+func (rdc *RealDockerClient) Environments() ([]Environment, error) {
+	envs := make([]Environment, 0)
+
+	dockerContainers, err := rdc.dcl.ListContainers(docker.ListContainersOptions{All: true})
+	if err != nil {
+		return envs, err
+	}
+
+	containersByName := make(map[string]Container)
+	for _, cont := range dockerContainers {
+		name := strings.TrimPrefix(cont.Names[0], "/")
+		ports := make([]Port, 0)
+		for _, cPort := range cont.Ports {
+			ports = append(ports, Port{
+				HostIp:        cPort.IP,
+				HostPort:      cPort.PublicPort,
+				ContainerPort: cPort.PrivatePort,
+				Type:          cPort.Type,
+			})
+		}
+		containersByName[name] = Container{
+			Name:    name,
+			Image:   cont.Image,
+			Running: true,
+			Ports:   ports,
+		}
+	}
+
+	for key, value := range containersByName {
+		fmt.Println("Container: ", key)
+		fmt.Println("  ", value)
+	}
+
+	return envs, nil
+}
+
+func (rdc *TestDockerClient) Environments() ([]Environment, error) {
+	envs := make([]Environment, 0)
+
+	return envs, nil
+}
+
+func (rdc *TestDockerClient) Images() (map[string]string, error) {
+	images := make(map[string]string)
+
+	return images, nil
+}
+
+func NewConn() (*RealDockerClient, error) {
+
+	dcl, err := connect()
+	if err != nil {
+		return nil, err
+	}
+	dockerClient := RealDockerClient{dcl: dcl}
+
+	return &dockerClient, nil
+}
+
+func NewTestConn() (*TestDockerClient, error) {
+
+	dockerClient := TestDockerClient{}
+
+	return &dockerClient, nil
+}
 
 func connect() (*docker.Client, error) {
 
