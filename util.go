@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path"
 	"strings"
@@ -12,7 +13,7 @@ import (
 
 type DockerClient interface {
 	Images() (map[string]string, error)
-	Environments() ([]Environment, error)
+	Environments() (map[string]Environment, error)
 }
 
 type RealDockerClient struct {
@@ -60,8 +61,8 @@ func (rdc *RealDockerClient) Images() (map[string]string, error) {
 	return images, nil
 }
 
-func (rdc *RealDockerClient) Environments() ([]Environment, error) {
-	envs := make([]Environment, 0)
+func (rdc *RealDockerClient) Environments() (map[string]Environment, error) {
+	envs := make(map[string]Environment)
 
 	dockerContainers, err := rdc.dcl.ListContainers(docker.ListContainersOptions{All: true})
 	if err != nil {
@@ -83,14 +84,26 @@ func (rdc *RealDockerClient) Environments() ([]Environment, error) {
 		containersByName[name] = Container{
 			Name:    name,
 			Image:   cont.Image,
-			Running: true,
+			Running: strings.Contains(cont.Status, "Up"),
 			Ports:   ports,
 		}
 	}
 
-	for key, value := range containersByName {
-		fmt.Println("Container: ", key)
-		fmt.Println("  ", value)
+	files, err := ioutil.ReadDir("/home/nate/envs/")
+	if err != nil {
+		return nil, err
+	}
+
+	for _, file := range files {
+		if file.IsDir() {
+			contName := fmt.Sprintf("ddc_%s", file.Name())
+			envs[file.Name()] = Environment{
+				Name:      file.Name(),
+				Container: containersByName[contName],
+			}
+
+			// TODO: if container defined, extract type
+		}
 	}
 
 	return envs, nil

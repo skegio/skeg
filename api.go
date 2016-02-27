@@ -23,8 +23,9 @@ func listEnvironments(dc DockerClient) error {
 	if err != nil {
 		return err
 	}
-	for _, env := range envs {
-		fmt.Println(env)
+	for name, data := range envs {
+		fmt.Println("Name: ", name)
+		fmt.Println("  ", data)
 	}
 
 	return nil
