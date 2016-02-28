@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"regexp"
 	"strings"
 
 	"github.com/fsouza/go-dockerclient"
@@ -43,6 +44,7 @@ type Container struct {
 type Environment struct {
 	Name      string
 	Container Container
+	Type      string
 }
 
 func (rdc *RealDockerClient) Images() (map[string]string, error) {
@@ -94,15 +96,24 @@ func (rdc *RealDockerClient) Environments() (map[string]Environment, error) {
 		return nil, err
 	}
 
+	re := regexp.MustCompile(fmt.Sprintf("%s/(.*)dev", "nate"))
+
 	for _, file := range files {
 		if file.IsDir() {
 			contName := fmt.Sprintf("ddc_%s", file.Name())
-			envs[file.Name()] = Environment{
+			newEnv := Environment{
 				Name:      file.Name(),
 				Container: containersByName[contName],
 			}
 
-			// TODO: if container defined, extract type
+			if cont, ok := containersByName[contName]; ok {
+				image, _ := docker.ParseRepositoryTag(cont.Image)
+				if matches := re.FindStringSubmatch(image); len(matches) == 2 {
+					newEnv.Type = matches[1]
+				}
+			}
+
+			envs[file.Name()] = newEnv
 		}
 	}
 
