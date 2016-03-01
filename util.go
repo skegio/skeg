@@ -43,7 +43,7 @@ type Container struct {
 
 type Environment struct {
 	Name      string
-	Container Container
+	Container *Container
 	Type      string
 }
 
@@ -71,7 +71,7 @@ func (rdc *RealDockerClient) Environments() (map[string]Environment, error) {
 		return envs, err
 	}
 
-	containersByName := make(map[string]Container)
+	containersByName := make(map[string]*Container)
 	for _, cont := range dockerContainers {
 		name := strings.TrimPrefix(cont.Names[0], "/")
 		ports := make([]Port, 0)
@@ -83,7 +83,7 @@ func (rdc *RealDockerClient) Environments() (map[string]Environment, error) {
 				Type:          cPort.Type,
 			})
 		}
-		containersByName[name] = Container{
+		containersByName[name] = &Container{
 			Name:    name,
 			Image:   cont.Image,
 			Running: strings.Contains(cont.Status, "Up"),
@@ -110,6 +110,8 @@ func (rdc *RealDockerClient) Environments() (map[string]Environment, error) {
 				image, _ := docker.ParseRepositoryTag(cont.Image)
 				if matches := re.FindStringSubmatch(image); len(matches) == 2 {
 					newEnv.Type = matches[1]
+				} else {
+					newEnv.Type = "unknown"
 				}
 			}
 

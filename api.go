@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 func createEnvironment(dc DockerClient) error {
 	images, err := dc.Images()
@@ -23,9 +26,26 @@ func listEnvironments(dc DockerClient) error {
 	if err != nil {
 		return err
 	}
-	for name, data := range envs {
-		fmt.Println("Name: ", name)
-		fmt.Println("  ", data)
+	keys := make([]string, 0)
+	for key, _ := range envs {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	for _, name := range keys {
+		fmt.Printf("%s ", name)
+		data := envs[name]
+
+		if data.Container == nil {
+			fmt.Println("[no container]")
+		} else {
+			state := "stopped"
+			if data.Container.Running {
+				state = "running"
+			}
+
+			fmt.Printf("[type: %s] [%s]\n", data.Type, state)
+		}
 	}
 
 	return nil
