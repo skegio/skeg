@@ -2,51 +2,100 @@ package main
 
 import (
 	"fmt"
-	"sort"
+	"strings"
+
+	"github.com/fsouza/go-dockerclient"
 )
 
-func createEnvironment(dc DockerClient) error {
-	images, err := dc.Images()
-	if err != nil {
-		return err
-	}
-	fmt.Println(images)
-
-	images, err = dc.Images()
-	if err != nil {
-		return err
-	}
-	fmt.Println(images)
-
-	return nil
+type Port struct {
+	HostIp        string
+	HostPort      int64
+	ContainerPort int64
+	Type          string
 }
 
-func listEnvironments(dc DockerClient) error {
-	envs, err := dc.Environments()
+type Container struct {
+	Name    string
+	Image   string
+	Running bool
+	Ports   []Port
+}
+
+type Environment struct {
+	Name      string
+	Container *Container
+	Type      string
+}
+
+// func createEnvironment(dc DockerClientOld) error {
+// 	images, err := dc.Images()
+// 	if err != nil {
+// 		return err
+// 	}
+// 	fmt.Println(images)
+
+// 	images, err = dc.Images()
+// 	if err != nil {
+// 		return err
+// 	}
+// 	fmt.Println(images)
+
+// 	return nil
+// }
+
+func Environments(dc DockerClient, sc SystemClient) (map[string]Environment, error) {
+	envs := make(map[string]Environment)
+
+	dockerContainers, err := dc.ListContainers()
 	if err != nil {
-		return err
+		return envs, err
 	}
-	keys := make([]string, 0)
-	for key, _ := range envs {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
 
-	for _, name := range keys {
-		fmt.Printf("%s ", name)
-		data := envs[name]
-
-		if data.Container == nil {
-			fmt.Println("[no container]")
-		} else {
-			state := "stopped"
-			if data.Container.Running {
-				state = "running"
-			}
-
-			fmt.Printf("[type: %s] [%s]\n", data.Type, state)
+	containersByName := make(map[string]*Container)
+	for _, cont := range dockerContainers {
+		name := strings.TrimPrefix(cont.Names[0], "/")
+		ports := make([]Port, 0)
+		for _, cPort := range cont.Ports {
+			ports = append(ports, Port{
+				HostIp:        cPort.IP,
+				HostPort:      cPort.PublicPort,
+				ContainerPort: cPort.PrivatePort,
+				Type:          cPort.Type,
+			})
+		}
+		containersByName[name] = &Container{
+			Name:    name,
+			Image:   cont.Image,
+			Running: strings.Contains(cont.Status, "Up"),
+			Ports:   ports,
 		}
 	}
 
-	return nil
+	files, err := sc.EnvironmentDirs()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, file := range files {
+		if file.IsDir() {
+			contName := fmt.Sprintf("ddc_%s", file.Name())
+			newEnv := Environment{
+				Name:      file.Name(),
+				Container: containersByName[contName],
+			}
+
+			if cont, ok := containersByName[contName]; ok {
+				image, _ := docker.ParseRepositoryTag(cont.Image)
+				envType, err := sc.TypeFromImageName(image)
+				if err != nil {
+					return nil, err
+				}
+				newEnv.Type = envType
+			}
+
+			envs[file.Name()] = newEnv
+		}
+	}
+
+	return envs, nil
 }

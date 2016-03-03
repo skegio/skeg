@@ -18,6 +18,16 @@ type GlobalOptions struct {
 	LogJSON   func() `short:"j" long:"log-json" description:"Log in JSON format."`
 }
 
+func (gopts *GlobalOptions) toConnectOpts() ConnectOpts {
+	return ConnectOpts{
+		TLSCaCert: gopts.TLSCaCert,
+		TLSCert:   gopts.TLSCert,
+		TLSKey:    gopts.TLSKey,
+		TLSVerify: gopts.TLSVerify,
+		Host:      gopts.Host,
+	}
+}
+
 var globalOptions GlobalOptions
 var parser = flags.NewParser(&globalOptions, flags.Default)
 var originalArgs []string

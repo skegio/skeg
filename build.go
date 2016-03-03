@@ -22,7 +22,7 @@ var buildCommand BuildCommand
 func (x *BuildCommand) Execute(args []string) error {
 	logrus.Infof("Build done.")
 
-	client, err := connect()
+	client, err := connectDocker()
 	if err != nil {
 		return err
 	}
