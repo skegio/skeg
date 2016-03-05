@@ -7,20 +7,6 @@ import (
 	"github.com/fsouza/go-dockerclient"
 )
 
-type Port struct {
-	HostIp        string
-	HostPort      int64
-	ContainerPort int64
-	Type          string
-}
-
-type Container struct {
-	Name    string
-	Image   string
-	Running bool
-	Ports   []Port
-}
-
 type Environment struct {
 	Name      string
 	Container *Container
