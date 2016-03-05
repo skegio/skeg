@@ -1,9 +1,12 @@
 package main
 
 import (
+	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/fsouza/go-dockerclient"
+	"github.com/stretchr/testify/assert"
 )
 
 type TestDockerClient struct {
@@ -26,14 +29,43 @@ func NewTestDockerClient() (*TestDockerClient, error) {
 	return &dockerClient, nil
 }
 
-func TestSomething(t *testing.T) {
-	tdc, _ := NewTestDockerClient()
-	tdc.AddContainer(
+func TestEnvironments(t *testing.T) {
+	assert := assert.New(t)
+
+	tempdir, _ := ioutil.TempDir("", "ddc")
+	defer os.RemoveAll(tempdir)
+
+	sc, _ := NewSystemClientWithBase(tempdir)
+
+	dc, _ := NewTestDockerClient()
+	dc.AddContainer(
 		docker.APIContainers{
-			ID: "foo",
+			ID:     "foo",
+			Names:  []string{"/ddc_foo"},
+			Image:  "nate/clojuredev:latest",
+			Status: "Up 12 hours",
+			Ports: []docker.APIPort{
+				{32768, 22, "tcp", "0.0.0.0"},
+			},
 		},
 	)
-	// t.Fail()
+	sc.EnsureEnvironmentDir("foo")
 
-	// fmt.Println(tdc)
+	envs, err := Environments(dc, sc)
+	assert.Nil(err)
+	assert.Equal(
+		envs,
+		map[string]Environment{
+			"foo": Environment{
+				"foo",
+				&Container{
+					"ddc_foo",
+					"nate/clojuredev:latest",
+					true,
+					[]Port{{"0.0.0.0", 22, 32768, "tcp"}},
+				},
+				"clojure",
+			},
+		},
+	)
 }
