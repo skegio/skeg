@@ -13,6 +13,17 @@ type Environment struct {
 	Type      string
 }
 
+type BaseImage struct {
+	Name        string
+	Description string
+	Tags        []BaseImageTag
+}
+
+type BaseImageTag struct {
+	Name   string
+	Pulled bool
+}
+
 // func createEnvironment(dc DockerClientOld) error {
 // 	images, err := dc.Images()
 // 	if err != nil {
@@ -28,6 +39,55 @@ type Environment struct {
 
 // 	return nil
 // }
+
+func BaseImages(dc DockerClient) ([]BaseImage, error) {
+
+	images := make([]BaseImage, 0)
+
+	dockerImages, err := dc.ListImages()
+	if err != nil {
+		return images, err
+	}
+
+	tagToImage := make(map[string]docker.APIImages)
+	for _, im := range dockerImages {
+		for _, tag := range im.RepoTags {
+			tagToImage[tag] = im
+		}
+	}
+
+	var baseImages = []BaseImage{
+		{
+			"dockdev/go",
+			"Golang Image",
+			[]BaseImageTag{
+				{"1.5", false},
+				{"1.6", false},
+			},
+		},
+		{
+			"dockdev/clojure",
+			"Clojure image",
+			[]BaseImageTag{
+				{"java7", true},
+				{"java8", false},
+			},
+		},
+		{
+			"dockdev/python",
+			"Python base image",
+			[]BaseImageTag{
+				{"2.7.11", false},
+				{"3.4.4", false},
+				{"3.5.1", false},
+			},
+		},
+	}
+
+	// TODO: look in dockerImages to see if images are pulled
+
+	return baseImages, nil
+}
 
 func Environments(dc DockerClient, sc SystemClient) (map[string]Environment, error) {
 	envs := make(map[string]Environment)

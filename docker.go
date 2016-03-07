@@ -32,6 +32,7 @@ type Container struct {
 
 type DockerClient interface {
 	ListContainers() ([]docker.APIContainers, error)
+	ListImages() ([]docker.APIImages, error)
 }
 
 type RealDockerClient struct {
@@ -47,6 +48,17 @@ func (rdc *RealDockerClient) ListContainers() ([]docker.APIContainers, error) {
 	}
 
 	return containers, nil
+}
+
+func (rdc *RealDockerClient) ListImages() ([]docker.APIImages, error) {
+	var images []docker.APIImages
+
+	images, err := rdc.dcl.ListImages(docker.ListImagesOptions{})
+	if err != nil {
+		return images, err
+	}
+
+	return images, nil
 }
 
 // func (rdc *RealDockerClient) Images() (map[string]string, error) {
