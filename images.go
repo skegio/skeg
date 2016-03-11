@@ -22,7 +22,7 @@ func (x *ImagesCommand) Execute(args []string) error {
 	return listImages(baseImages)
 }
 
-func listImages(images []BaseImage) error {
+func listImages(images []*BaseImage) error {
 	for _, im := range images {
 		fmt.Printf("%s: %s\n  Tags:\n", im.Name, im.Description)
 		for _, tag := range im.Tags {

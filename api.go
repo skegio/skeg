@@ -16,13 +16,15 @@ type Environment struct {
 type BaseImage struct {
 	Name        string
 	Description string
-	Tags        []BaseImageTag
+	Tags        []*BaseImageTag
 }
 
 type BaseImageTag struct {
 	Name   string
 	Pulled bool
 }
+
+var dockerOrg = "dockdev"
 
 // func createEnvironment(dc DockerClientOld) error {
 // 	images, err := dc.Images()
@@ -40,9 +42,9 @@ type BaseImageTag struct {
 // 	return nil
 // }
 
-func BaseImages(dc DockerClient) ([]BaseImage, error) {
+func BaseImages(dc DockerClient) ([]*BaseImage, error) {
 
-	images := make([]BaseImage, 0)
+	images := make([]*BaseImage, 0)
 
 	dockerImages, err := dc.ListImages()
 	if err != nil {
@@ -56,35 +58,42 @@ func BaseImages(dc DockerClient) ([]BaseImage, error) {
 		}
 	}
 
-	var baseImages = []BaseImage{
+	// TODO: get this information from somewhere else.  API?
+	var baseImages = []*BaseImage{
 		{
-			"dockdev/go",
+			"go",
 			"Golang Image",
-			[]BaseImageTag{
+			[]*BaseImageTag{
 				{"1.5", false},
 				{"1.6", false},
 			},
 		},
 		{
-			"dockdev/clojure",
+			"clojure",
 			"Clojure image",
-			[]BaseImageTag{
-				{"java7", true},
-				{"java8", false},
+			[]*BaseImageTag{
+				{"java7", false},
 			},
 		},
 		{
-			"dockdev/python",
+			"python",
 			"Python base image",
-			[]BaseImageTag{
-				{"2.7.11", false},
-				{"3.4.4", false},
-				{"3.5.1", false},
+			[]*BaseImageTag{
+				{"both", false},
+				{"2.7", false},
+				{"3.4", false},
 			},
 		},
 	}
 
-	// TODO: look in dockerImages to see if images are pulled
+	for _, bimage := range baseImages {
+		for _, btag := range bimage.Tags {
+			imageTag := fmt.Sprintf("%s/%s:%s", dockerOrg, bimage.Name, btag.Name)
+			if _, ok := tagToImage[imageTag]; ok {
+				btag.Pulled = true
+			}
+		}
+	}
 
 	return baseImages, nil
 }
