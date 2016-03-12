@@ -27,10 +27,14 @@ func listImages(images []*BaseImage) error {
 		fmt.Printf("%s: %s\n  Tags:\n", im.Name, im.Description)
 		for _, tag := range im.Tags {
 			var pulled string
+			var preferred string
 			if tag.Pulled {
 				pulled = " (pulled)"
 			}
-			fmt.Printf("    %s%s\n", tag.Name, pulled)
+			if tag.Preferred {
+				preferred = " (preferred)"
+			}
+			fmt.Printf("    %s%s%s\n", tag.Name, pulled, preferred)
 		}
 	}
 	return nil

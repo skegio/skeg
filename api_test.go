@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -11,10 +12,19 @@ import (
 
 type TestDockerClient struct {
 	containers []docker.APIContainers
+	images     []docker.APIImages
 }
 
 func (rdc *TestDockerClient) ListContainers() ([]docker.APIContainers, error) {
 	return rdc.containers, nil
+}
+
+func (rdc *TestDockerClient) ListImages() ([]docker.APIImages, error) {
+	return rdc.images, nil
+}
+
+func (rdc *TestDockerClient) PullImage(fullImage string, output io.Writer) error {
+	return nil
 }
 
 func (rdc *TestDockerClient) AddContainer(container docker.APIContainers) error {
@@ -49,7 +59,8 @@ func TestEnvironments(t *testing.T) {
 			},
 		},
 	)
-	sc.EnsureEnvironmentDir("foo")
+	key, _ := sc.EnsureSSHKey()
+	sc.EnsureEnvironmentDir("foo", key)
 
 	envs, err := Environments(dc, sc)
 	assert.Nil(err)

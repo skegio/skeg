@@ -12,7 +12,7 @@ import (
 type SystemClient interface {
 	EnvironmentDirs() ([]os.FileInfo, error)
 	TypeFromImageName(imageName string) (string, error)
-	EnsureEnvironmentDir(envName string) (string, error)
+	EnsureEnvironmentDir(envName string, keys SSHKey) (string, error)
 	EnsureSSHKey() (SSHKey, error)
 }
 
@@ -45,10 +45,26 @@ func (rsc *RealSystemClient) TypeFromImageName(imageName string) (string, error)
 	return "unknown", nil
 }
 
-func (rsc *RealSystemClient) EnsureEnvironmentDir(envName string) (string, error) {
+func (rsc *RealSystemClient) EnsureEnvironmentDir(envName string, keys SSHKey) (string, error) {
 
 	envPath := filepath.Join(rsc.baseDir, envName)
 	err := os.MkdirAll(envPath, 0755)
+	if err != nil {
+		return "", err
+	}
+
+	sshPath := filepath.Join(envPath, ".ssh")
+	err = os.MkdirAll(sshPath, 0700)
+	if err != nil {
+		return "", err
+	}
+
+	akPath := filepath.Join(sshPath, "authorized_keys")
+	data, err := ioutil.ReadFile(keys.publicPath)
+	if err != nil {
+		return "", err
+	}
+	err = ioutil.WriteFile(akPath, data, 0700)
 	if err != nil {
 		return "", err
 	}

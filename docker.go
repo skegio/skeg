@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"io"
 	"os"
 	"path"
 
@@ -33,6 +34,7 @@ type Container struct {
 type DockerClient interface {
 	ListContainers() ([]docker.APIContainers, error)
 	ListImages() ([]docker.APIImages, error)
+	PullImage(image string, output io.Writer) error
 }
 
 type RealDockerClient struct {
@@ -59,6 +61,23 @@ func (rdc *RealDockerClient) ListImages() ([]docker.APIImages, error) {
 	}
 
 	return images, nil
+}
+
+func (rdc *RealDockerClient) PullImage(fullImage string, output io.Writer) error {
+	image, tag := docker.ParseRepositoryTag(fullImage)
+
+	opts := docker.PullImageOptions{
+		Repository:   image,
+		Tag:          tag,
+		OutputStream: output,
+	}
+	// TODO: pull auth config from dockercfg
+	err := rdc.dcl.PullImage(opts, docker.AuthConfiguration{})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // func (rdc *RealDockerClient) Images() (map[string]string, error) {
