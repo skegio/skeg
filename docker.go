@@ -1,10 +1,14 @@
 package main
 
 import (
+	"archive/tar"
+	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path"
+	"time"
 
 	"github.com/fsouza/go-dockerclient"
 )
@@ -31,14 +35,87 @@ type Container struct {
 	Ports   []Port
 }
 
+type CreateContainerOpts struct {
+	Name     string
+	Hostname string
+	Ports    []Port
+	Volumes  map[string]string
+	Image    string
+}
+
 type DockerClient interface {
 	ListContainers() ([]docker.APIContainers, error)
 	ListImages() ([]docker.APIImages, error)
 	PullImage(image string, output io.Writer) error
+	BuildImage(name string, dockerfile string, output io.Writer) error
+	CreateContainer(cco CreateContainerOpts) error
+	StartContainer(name string) error
 }
 
 type RealDockerClient struct {
 	dcl *docker.Client
+}
+
+func (rdc *RealDockerClient) StartContainer(name string) error {
+	err := rdc.dcl.StartContainer(name, nil)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (rdc *RealDockerClient) CreateContainer(cco CreateContainerOpts) error {
+	exposedPorts := make(map[docker.Port]struct{})
+	portBindings := make(map[docker.Port][]docker.PortBinding)
+	for _, port := range cco.Ports {
+		dport := docker.Port(fmt.Sprintf("%d/%s", port.ContainerPort, port.Type))
+		exposedPorts[dport] = struct{}{}
+		portBindings[dport] = []docker.PortBinding{{port.HostIp, fmt.Sprintf("%d", port.HostPort)}}
+	}
+
+	binds := make([]string, 0)
+	for src, dest := range cco.Volumes {
+		binds = append(binds, fmt.Sprintf("%s:%s", src, dest))
+	}
+
+	config := docker.Config{
+		ExposedPorts: exposedPorts,
+		Image:        cco.Image,
+		Hostname:     cco.Hostname,
+	}
+	hostConfig := docker.HostConfig{
+		Binds:        binds,
+		PortBindings: portBindings,
+	}
+
+	_, err := rdc.dcl.CreateContainer(docker.CreateContainerOptions{Name: cco.Name, Config: &config, HostConfig: &hostConfig})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (rdc *RealDockerClient) BuildImage(name string, dockerfile string, output io.Writer) error {
+	length := len(dockerfile)
+
+	t := time.Now()
+	inputbuf := bytes.NewBuffer(nil)
+	tr := tar.NewWriter(inputbuf)
+	tr.WriteHeader(&tar.Header{Name: "Dockerfile", Size: int64(length), ModTime: t, AccessTime: t, ChangeTime: t})
+	tr.Write([]byte(dockerfile))
+	tr.Close()
+
+	opts := docker.BuildImageOptions{
+		Name:         name,
+		InputStream:  inputbuf,
+		OutputStream: output,
+	}
+	if err := rdc.dcl.BuildImage(opts); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (rdc *RealDockerClient) ListContainers() ([]docker.APIContainers, error) {
@@ -79,22 +156,6 @@ func (rdc *RealDockerClient) PullImage(fullImage string, output io.Writer) error
 
 	return nil
 }
-
-// func (rdc *RealDockerClient) Images() (map[string]string, error) {
-// 	images := make(map[string]string)
-
-// 	images["foo"] = "bar"
-// 	clientImages, err := rdc.dcl.ListImages(docker.ListImagesOptions{})
-// 	if err != nil {
-// 		return images, err
-// 	}
-
-// 	for _, image := range clientImages {
-// 		fmt.Println(image)
-// 	}
-
-// 	return images, nil
-// }
 
 func NewDockerClient(opts ConnectOpts) (*RealDockerClient, error) {
 

@@ -16,14 +16,19 @@ type CreateCommand struct {
 	} `positional-args:"yes" required:"yes"`
 }
 
-func (ccommand *CreateCommand) toCreateOpts() CreateOpts {
+func (ccommand *CreateCommand) toCreateOpts(sc SystemClient) CreateOpts {
 	return CreateOpts{
 		Name:       ccommand.Args.Name,
-		Type:       ccommand.Type,
-		Version:    ccommand.Version,
-		Image:      ccommand.Image,
 		ProjectDir: ccommand.Directory,
 		Ports:      ccommand.Ports,
+		Build: BuildOpts{
+			Type:     ccommand.Type,
+			Version:  ccommand.Version,
+			Image:    ccommand.Image,
+			Username: sc.Username(),
+			UID:      sc.UID(),
+			GID:      sc.GID(),
+		},
 	}
 }
 
@@ -40,7 +45,7 @@ func (x *CreateCommand) Execute(args []string) error {
 		return err
 	}
 
-	return CreateEnvironment(dc, sc, createCommand.toCreateOpts(), os.Stdout)
+	return CreateEnvironment(dc, sc, createCommand.toCreateOpts(sc), os.Stdout)
 }
 
 func init() {

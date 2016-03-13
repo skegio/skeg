@@ -1,55 +1,46 @@
 package main
 
 import (
-	"archive/tar"
-	"bytes"
 	"fmt"
-	"log"
-	"time"
-
-	"github.com/Sirupsen/logrus"
-	"github.com/fsouza/go-dockerclient"
+	"os"
 )
 
 type BuildCommand struct {
-	User string `short:"u" long:"user" description:"Username inside the image."`
-	UID  int    `long:"uid" description:"UID inside the image."`
-	GID  int    `long:"gid" description:"GID inside the image."`
+	Type    string `short:"t" long:"type" description:"Type of environment."`
+	Version string `short:"v" long:"version" description:"Version of environment type."`
+	Image   string `short:"i" long:"image" description:"Image to use for creating environment."`
 }
 
 var buildCommand BuildCommand
 
-func (x *BuildCommand) Execute(args []string) error {
-	logrus.Infof("Build done.")
+func (ccommand *BuildCommand) toBuildOpts(sc SystemClient) BuildOpts {
+	return BuildOpts{
+		Type:     ccommand.Type,
+		Version:  ccommand.Version,
+		Image:    ccommand.Image,
+		Username: sc.Username(),
+		UID:      sc.UID(),
+		GID:      sc.GID(),
+	}
+}
 
-	client, err := connectDocker()
+func (x *BuildCommand) Execute(args []string) error {
+	dc, err := NewDockerClient(globalOptions.toConnectOpts())
 	if err != nil {
 		return err
 	}
 
-	t := time.Now()
-	inputbuf, outputbuf := bytes.NewBuffer(nil), bytes.NewBuffer(nil)
-	tr := tar.NewWriter(inputbuf)
-	dockerfile := "FROM nate/clojuredev:new\n"
-	length := len(dockerfile)
-	logrus.Infof("len: %d", length)
-	tr.WriteHeader(&tar.Header{Name: "Dockerfile", Size: int64(length), ModTime: t, AccessTime: t, ChangeTime: t})
-	tr.Write([]byte(dockerfile))
-	tr.Close()
-	opts := docker.BuildImageOptions{
-		Name:         "test",
-		InputStream:  inputbuf,
-		OutputStream: outputbuf,
-		BuildArgs: []docker.BuildArg{
-			{Name: "DEV_USER", Value: "nate"},
-			{Name: "DEV_UID", Value: "1000"},
-			{Name: "DEV_GID", Value: "1000"},
-		},
+	sc, err := NewSystemClient()
+	if err != nil {
+		return err
 	}
-	if err := client.BuildImage(opts); err != nil {
-		log.Fatal(err)
+
+	image, err := BuildImage(dc, buildCommand.toBuildOpts(sc), os.Stdout)
+	if err != nil {
+		return err
 	}
-	fmt.Println(outputbuf.String())
+
+	fmt.Println("Built image: ", image)
 
 	return nil
 }

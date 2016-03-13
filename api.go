@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"strings"
+	"text/template"
+	"time"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/fsouza/go-dockerclient"
@@ -29,11 +32,17 @@ type BaseImageTag struct {
 
 type CreateOpts struct {
 	Name       string
-	Type       string
-	Version    string
-	Image      string
 	ProjectDir string
 	Ports      []string
+	Build      BuildOpts
+}
+
+type BuildOpts struct {
+	Type     string
+	Version  string
+	Image    string
+	Username string
+	UID, GID int
 }
 
 var dockerOrg = "dockdev"
@@ -54,18 +63,61 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output i
 		return err
 	}
 
+	// TODO: use a previously built image
+	logrus.Debugf("Building customized docker image")
+	imageName, err := BuildImage(dc, co.Build, output)
+	if err != nil {
+		return err
+	}
+
+	logrus.Debugf("Preparing local environment directory")
+	path, err := sc.EnsureEnvironmentDir("foo", key)
+	if err != nil {
+		return err
+	}
+
+	logrus.Debugf("Creating container")
+
+	containerName := fmt.Sprintf("ddc_%s", co.Name)
+	ccont := CreateContainerOpts{
+		Name:     containerName,
+		Image:    imageName,
+		Hostname: co.Name,
+		Ports: []Port{
+			{"", 0, 22, "tcp"},
+			// TODO: add other ports
+		},
+		Volumes: map[string]string{
+			path: fmt.Sprintf("/home/%s", sc.Username()),
+		},
+	}
+	err = dc.CreateContainer(ccont)
+	if err != nil {
+		return err
+	}
+
+	logrus.Debugf("Starting container")
+	err = dc.StartContainer(containerName)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func BuildImage(dc DockerClient, bo BuildOpts, output io.Writer) (string, error) {
 	logrus.Debugf("Figuring out which image to use")
 	var image string
-	if len(co.Type) > 0 {
+	if len(bo.Type) > 0 {
 		baseImages, err := BaseImages(dc)
 		if err != nil {
-			return err
+			return "", err
 		}
 
 		var matcher func(*BaseImageTag) bool
-		if len(co.Version) > 0 {
+		if len(bo.Version) > 0 {
 			matcher = func(tag *BaseImageTag) bool {
-				return tag.Name == co.Version
+				return tag.Name == bo.Version
 			}
 		} else {
 			matcher = func(tag *BaseImageTag) bool {
@@ -73,7 +125,7 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output i
 			}
 		}
 		for _, im := range baseImages {
-			if co.Type == im.Name {
+			if bo.Type == im.Name {
 				for _, tag := range im.Tags {
 					if matcher(tag) {
 						image = fmt.Sprintf("%s/%s:%s", dockerOrg, im.Name, tag.Name)
@@ -82,33 +134,54 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output i
 			}
 		}
 		if len(image) == 0 {
-			return fmt.Errorf("No image found")
+			return "", fmt.Errorf("No image found")
 		}
-	} else if len(co.Image) > 0 {
-		image = co.Image
+	} else if len(bo.Image) > 0 {
+		image = bo.Image
 	}
 
 	logrus.Debugf("Using image: %s", image)
-	err = EnsureImage(dc, image, output)
+	err := EnsureImage(dc, image, output)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	logrus.Debugf("Building customized docker image")
-	// TODO: err := BuildImage()
+	logrus.Debugf("Building image")
+	dockerfileTmpl := `FROM {{ .Image }}
 
-	logrus.Debugf("Preparing local environment directory")
-	path, err := sc.EnsureEnvironmentDir("foo", key)
-	if err != nil {
-		return err
+RUN addgroup --gid {{ .Gid }} {{ .Username }} && \
+    adduser --uid {{ .Uid }} --gid {{ .Gid }} {{ .Username }} --gecos "" --disabled-password && \
+    echo "{{ .Username }}   ALL=NOPASSWD: ALL" >> /etc/sudoers
+
+LABEL org.endot.dockdev.username={{ .Username }} \
+      org.endot.dockdev.gid={{ .Gid }} \
+      org.endot.dockdev.uid={{ .Uid }} \
+      org.endot.dockdev.base={{ .Image }}
+`
+
+	dockerfileData := struct {
+		Username, Image string
+		Uid, Gid        int
+	}{
+		bo.Username, image, bo.UID, bo.GID,
 	}
-	_ = path
 
-	logrus.Debugf("Creating container")
+	tmpl := template.Must(template.New("dockerfile").Parse(dockerfileTmpl))
+	var dockerfileBytes bytes.Buffer
 
-	logrus.Debugf("Starting container")
+	err = tmpl.Execute(&dockerfileBytes, dockerfileData)
+	if err != nil {
+		return "", nil
+	}
 
-	return nil
+	imageName := fmt.Sprintf("ddc-%s-%d", bo.Username, time.Now().Unix())
+	err = dc.BuildImage(imageName, dockerfileBytes.String(), output)
+
+	if err != nil {
+		return "", err
+	}
+
+	return imageName, nil
 }
 
 func BaseImages(dc DockerClient) ([]*BaseImage, error) {

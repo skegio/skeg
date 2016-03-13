@@ -14,10 +14,15 @@ type SystemClient interface {
 	TypeFromImageName(imageName string) (string, error)
 	EnsureEnvironmentDir(envName string, keys SSHKey) (string, error)
 	EnsureSSHKey() (SSHKey, error)
+	Username() string
+	UID() int
+	GID() int
 }
 
 type RealSystemClient struct {
 	user      string
+	uid       int
+	gid       int
 	baseDir   string
 	envRegexp *regexp.Regexp
 }
@@ -34,6 +39,18 @@ func (rsc *RealSystemClient) EnvironmentDirs() ([]os.FileInfo, error) {
 	}
 
 	return files, nil
+}
+
+func (rsc *RealSystemClient) Username() string {
+	return rsc.user
+}
+
+func (rsc *RealSystemClient) UID() int {
+	return rsc.uid
+}
+
+func (rsc *RealSystemClient) GID() int {
+	return rsc.gid
 }
 
 func (rsc *RealSystemClient) TypeFromImageName(imageName string) (string, error) {
@@ -108,6 +125,8 @@ func NewSystemClientWithBase(baseDir string) (*RealSystemClient, error) {
 
 	systemClient := RealSystemClient{
 		user:      user,
+		uid:       os.Getuid(),
+		gid:       os.Getgid(),
 		baseDir:   baseDir,
 		envRegexp: regexp.MustCompile(fmt.Sprintf("%s/(.*)dev", user)),
 	}
