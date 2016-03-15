@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"io/ioutil"
 	"os"
@@ -14,6 +15,7 @@ import (
 type TestDockerClient struct {
 	containers []docker.APIContainers
 	images     []docker.APIImages
+	failures   map[string]error
 }
 
 func (rdc *TestDockerClient) ListContainers() ([]docker.APIContainers, error) {
@@ -21,6 +23,11 @@ func (rdc *TestDockerClient) ListContainers() ([]docker.APIContainers, error) {
 }
 
 func (rdc *TestDockerClient) ListImages() ([]docker.APIImages, error) {
+
+	if err, ok := rdc.failures["ListImages"]; ok {
+		return []docker.APIImages{}, err
+	}
+
 	return rdc.images, nil
 }
 
@@ -31,9 +38,11 @@ func (rdc *TestDockerClient) PullImage(fullImage string, output io.Writer) error
 func (rdc *TestDockerClient) BuildImage(name string, dockerfile string, output io.Writer) error {
 	return nil
 }
+
 func (rdc *TestDockerClient) CreateContainer(cco CreateContainerOpts) error {
 	return nil
 }
+
 func (rdc *TestDockerClient) StartContainer(name string) error {
 	return nil
 }
@@ -48,9 +57,15 @@ func (rdc *TestDockerClient) AddImage(image docker.APIImages) error {
 	return nil
 }
 
+func (rdc *TestDockerClient) AddFailure(name string, message error) {
+	rdc.failures[name] = message
+}
+
 func NewTestDockerClient() (*TestDockerClient, error) {
 
-	dockerClient := TestDockerClient{}
+	dockerClient := TestDockerClient{
+		failures: make(map[string]error),
+	}
 
 	return &dockerClient, nil
 }
@@ -153,15 +168,27 @@ func TestBaseImages(t *testing.T) {
 func TestEnsureImage(t *testing.T) {
 	assert := assert.New(t)
 
+	imageName := "dockdev/python:3.4"
+
 	dc, _ := NewTestDockerClient()
 	dc.AddImage(
 		docker.APIImages{
 			RepoTags: []string{
-				"dockdev/python:3.4",
+				imageName,
 			},
 		},
 	)
 
 	err := EnsureImage(dc, "testimage", bytes.NewBuffer(nil))
 	assert.Nil(err)
+
+	err = EnsureImage(dc, imageName, bytes.NewBuffer(nil))
+	assert.Nil(err)
+
+	liError := errors.New("Listing error")
+	dc.AddFailure("ListImages", liError)
+
+	err = EnsureImage(dc, imageName, bytes.NewBuffer(nil))
+	assert.NotNil(err)
+	assert.Equal(err, liError)
 }
