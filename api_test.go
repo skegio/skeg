@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"io"
 	"io/ioutil"
 	"os"
@@ -27,8 +28,23 @@ func (rdc *TestDockerClient) PullImage(fullImage string, output io.Writer) error
 	return nil
 }
 
+func (rdc *TestDockerClient) BuildImage(name string, dockerfile string, output io.Writer) error {
+	return nil
+}
+func (rdc *TestDockerClient) CreateContainer(cco CreateContainerOpts) error {
+	return nil
+}
+func (rdc *TestDockerClient) StartContainer(name string) error {
+	return nil
+}
+
 func (rdc *TestDockerClient) AddContainer(container docker.APIContainers) error {
 	rdc.containers = append(rdc.containers, container)
+	return nil
+}
+
+func (rdc *TestDockerClient) AddImage(image docker.APIImages) error {
+	rdc.images = append(rdc.images, image)
 	return nil
 }
 
@@ -79,4 +95,73 @@ func TestEnvironments(t *testing.T) {
 			},
 		},
 	)
+}
+
+func TestBaseImages(t *testing.T) {
+	assert := assert.New(t)
+
+	dc, _ := NewTestDockerClient()
+	dc.AddImage(
+		docker.APIImages{
+			RepoTags: []string{
+				"dockdev/go:1.6",
+			},
+		},
+	)
+	dc.AddImage(
+		docker.APIImages{
+			RepoTags: []string{
+				"dockdev/python:3.4",
+			},
+		},
+	)
+
+	baseImages, err := BaseImages(dc)
+	assert.Nil(err)
+
+	assert.Equal(
+		baseImages,
+		[]*BaseImage{
+			{
+				"go",
+				"Golang Image",
+				[]*BaseImageTag{
+					{"1.5", false, false},
+					{"1.6", true, true},
+				},
+			},
+			{
+				"clojure",
+				"Clojure image",
+				[]*BaseImageTag{
+					{"java7", false, true},
+				},
+			},
+			{
+				"python",
+				"Python base image",
+				[]*BaseImageTag{
+					{"both", false, true},
+					{"2.7", false, false},
+					{"3.4", true, false},
+				},
+			},
+		},
+	)
+}
+
+func TestEnsureImage(t *testing.T) {
+	assert := assert.New(t)
+
+	dc, _ := NewTestDockerClient()
+	dc.AddImage(
+		docker.APIImages{
+			RepoTags: []string{
+				"dockdev/python:3.4",
+			},
+		},
+	)
+
+	err := EnsureImage(dc, "testimage", bytes.NewBuffer(nil))
+	assert.Nil(err)
 }
