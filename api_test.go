@@ -6,10 +6,12 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"regexp"
 	"testing"
 
 	"github.com/fsouza/go-dockerclient"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 type TestDockerClient struct {
@@ -19,15 +21,16 @@ type TestDockerClient struct {
 }
 
 func (rdc *TestDockerClient) ListContainers() ([]docker.APIContainers, error) {
+	if err, ok := rdc.failures["ListContainers"]; ok {
+		return []docker.APIContainers{}, err
+	}
 	return rdc.containers, nil
 }
 
 func (rdc *TestDockerClient) ListImages() ([]docker.APIImages, error) {
-
 	if err, ok := rdc.failures["ListImages"]; ok {
 		return []docker.APIImages{}, err
 	}
-
 	return rdc.images, nil
 }
 
@@ -59,6 +62,40 @@ func (rdc *TestDockerClient) AddImage(image docker.APIImages) error {
 
 func (rdc *TestDockerClient) AddFailure(name string, message error) {
 	rdc.failures[name] = message
+}
+
+type MockSystemClient struct {
+	mock.Mock
+}
+
+func (msc *MockSystemClient) EnvironmentDirs() ([]string, error) {
+	args := msc.Called()
+	return args.Get(0).([]string), args.Error(1)
+}
+
+func (msc *MockSystemClient) Username() string {
+	return "test"
+}
+
+func (msc *MockSystemClient) UID() int {
+	return 1000
+}
+
+func (msc *MockSystemClient) GID() int {
+	return 1000
+}
+
+func (msc *MockSystemClient) TypeFromImageName(imageName string) (string, error) {
+	args := msc.Called(imageName)
+	return args.String(0), args.Error(1)
+}
+
+func (msc *MockSystemClient) EnsureEnvironmentDir(envName string, keys SSHKey) (string, error) {
+	return "", nil
+}
+
+func (msc *MockSystemClient) EnsureSSHKey() (SSHKey, error) {
+	return SSHKey{}, nil
 }
 
 func NewTestDockerClient() (*TestDockerClient, error) {
@@ -93,7 +130,10 @@ func TestEnvironments(t *testing.T) {
 	key, _ := sc.EnsureSSHKey()
 	sc.EnsureEnvironmentDir("foo", key)
 
-	envs, err := Environments(dc, sc)
+	var envs map[string]Environment
+	var err error
+
+	envs, err = Environments(dc, sc)
 	assert.Nil(err)
 	assert.Equal(
 		envs,
@@ -110,6 +150,30 @@ func TestEnvironments(t *testing.T) {
 			},
 		},
 	)
+
+	msc := new(MockSystemClient)
+	dirError := errors.New("Dir listing error")
+	msc.On("EnvironmentDirs").Return([]string{}, dirError)
+
+	envs, err = Environments(dc, msc)
+	assert.NotNil(err)
+	assert.Equal(err, dirError)
+
+	msc = new(MockSystemClient)
+	tfiError := errors.New("Type from image error")
+	msc.On("TypeFromImageName", "nate/clojuredev").Return("", tfiError)
+	msc.On("EnvironmentDirs").Return([]string{"foo"}, nil)
+
+	envs, err = Environments(dc, msc)
+	assert.NotNil(err)
+	assert.Equal(err, tfiError)
+
+	clError := errors.New("Container list error")
+	dc.AddFailure("ListContainers", clError)
+
+	envs, err = Environments(dc, sc)
+	assert.NotNil(err)
+	assert.Equal(err, clError)
 }
 
 func TestBaseImages(t *testing.T) {
@@ -191,4 +255,48 @@ func TestEnsureImage(t *testing.T) {
 	err = EnsureImage(dc, imageName, bytes.NewBuffer(nil))
 	assert.NotNil(err)
 	assert.Equal(err, liError)
+}
+
+func TestCreateEnvironment(t *testing.T) {
+	assert := assert.New(t)
+
+	tempdir, _ := ioutil.TempDir("", "ddc")
+	defer os.RemoveAll(tempdir)
+
+	sc, _ := NewSystemClientWithBase(tempdir)
+
+	dc, _ := NewTestDockerClient()
+
+	co := CreateOpts{
+		Name:       "foo",
+		ProjectDir: "/tmp/foo",
+		Ports:      []string{"3000"},
+		Build: BuildOpts{
+			Type:     "go",
+			Version:  "1.6",
+			Image:    "",
+			Username: "user",
+			UID:      1000,
+			GID:      1000,
+		},
+	}
+
+	var err error
+
+	err = CreateEnvironment(dc, sc, co, bytes.NewBuffer(nil))
+	assert.Nil(err)
+
+	err = CreateEnvironment(dc, sc, co, bytes.NewBuffer(nil))
+	assert.NotNil(err)
+	assert.Regexp(regexp.MustCompile("already exists"), err)
+
+	liError := errors.New("Listing error")
+	dc.AddFailure("ListImages", liError)
+
+	co.Name = "foo2"
+
+	err = CreateEnvironment(dc, sc, co, bytes.NewBuffer(nil))
+	assert.NotNil(err)
+	assert.Equal(err, liError)
+
 }

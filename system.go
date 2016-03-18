@@ -10,7 +10,7 @@ import (
 )
 
 type SystemClient interface {
-	EnvironmentDirs() ([]os.FileInfo, error)
+	EnvironmentDirs() ([]string, error)
 	TypeFromImageName(imageName string) (string, error)
 	EnsureEnvironmentDir(envName string, keys SSHKey) (string, error)
 	EnsureSSHKey() (SSHKey, error)
@@ -32,13 +32,20 @@ type SSHKey struct {
 	publicPath  string
 }
 
-func (rsc *RealSystemClient) EnvironmentDirs() ([]os.FileInfo, error) {
+func (rsc *RealSystemClient) EnvironmentDirs() ([]string, error) {
 	files, err := ioutil.ReadDir(rsc.baseDir)
 	if err != nil {
 		return nil, err
 	}
 
-	return files, nil
+	dirs := make([]string, 0)
+	for _, file := range files {
+		if file.IsDir() {
+			dirs = append(dirs, file.Name())
+		}
+	}
+
+	return dirs, nil
 }
 
 func (rsc *RealSystemClient) Username() string {

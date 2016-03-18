@@ -274,24 +274,22 @@ func Environments(dc DockerClient, sc SystemClient) (map[string]Environment, err
 	}
 
 	for _, file := range files {
-		if file.IsDir() {
-			contName := fmt.Sprintf("ddc_%s", file.Name())
-			newEnv := Environment{
-				Name:      file.Name(),
-				Container: containersByName[contName],
-			}
-
-			if cont, ok := containersByName[contName]; ok {
-				image, _ := docker.ParseRepositoryTag(cont.Image)
-				envType, err := sc.TypeFromImageName(image)
-				if err != nil {
-					return nil, err
-				}
-				newEnv.Type = envType
-			}
-
-			envs[file.Name()] = newEnv
+		contName := fmt.Sprintf("ddc_%s", file)
+		newEnv := Environment{
+			Name:      file,
+			Container: containersByName[contName],
 		}
+
+		if cont, ok := containersByName[contName]; ok {
+			image, _ := docker.ParseRepositoryTag(cont.Image)
+			envType, err := sc.TypeFromImageName(image)
+			if err != nil {
+				return nil, err
+			}
+			newEnv.Type = envType
+		}
+
+		envs[file] = newEnv
 	}
 
 	return envs, nil
