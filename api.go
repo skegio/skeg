@@ -149,7 +149,7 @@ func BuildImage(dc DockerClient, bo BuildOpts, output io.Writer) (string, error)
 	logrus.Debugf("Building image")
 	dockerfileTmpl := `FROM {{ .Image }}
 
-RUN addgroup --gid {{ .Gid }} {{ .Username }} && \
+RUN (addgroup --gid {{ .Gid }} {{ .Username }} || /bin/true) && \
     adduser --uid {{ .Uid }} --gid {{ .Gid }} {{ .Username }} --gecos "" --disabled-password && \
     echo "{{ .Username }}   ALL=NOPASSWD: ALL" >> /etc/sudoers
 
