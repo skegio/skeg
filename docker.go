@@ -50,6 +50,7 @@ type DockerClient interface {
 	BuildImage(name string, dockerfile string, output io.Writer) error
 	CreateContainer(cco CreateContainerOpts) error
 	StartContainer(name string) error
+	StopContainer(name string) error
 }
 
 type RealDockerClient struct {
@@ -58,6 +59,14 @@ type RealDockerClient struct {
 
 func (rdc *RealDockerClient) StartContainer(name string) error {
 	err := rdc.dcl.StartContainer(name, nil)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (rdc *RealDockerClient) StopContainer(name string) error {
+	err := rdc.dcl.StopContainer(name, 10)
 	if err != nil {
 		return err
 	}

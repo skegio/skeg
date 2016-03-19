@@ -131,6 +131,29 @@ func EnsureRunning(dc DockerClient, sc SystemClient, envName string) (Environmen
 	return GetEnvironment(dc, sc, envName)
 }
 
+func EnsureStopped(dc DockerClient, sc SystemClient, envName string) (Environment, error) {
+	var env Environment
+
+	envs, err := Environments(dc, sc)
+	if err != nil {
+		return env, err
+	}
+	env, ok := envs[envName]
+
+	if !ok {
+		return env, fmt.Errorf("Environment %s doesn't exist.", envName)
+	}
+
+	if env.Container.Running {
+		err = dc.StopContainer(env.Container.Name)
+		if err != nil {
+			return env, err
+		}
+	}
+
+	return GetEnvironment(dc, sc, envName)
+}
+
 func BuildImage(dc DockerClient, bo BuildOpts, output io.Writer) (string, error) {
 	logrus.Debugf("Figuring out which image to use")
 	var image string
