@@ -2,8 +2,11 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"os"
+	"os/exec"
 	"strings"
 	"text/template"
 	"time"
@@ -13,9 +16,9 @@ import (
 )
 
 type Environment struct {
-	Name      string
-	Container *Container
-	Type      string
+	Name      string     `json:"name"`
+	Container *Container `json:"container"`
+	Type      string     `json:"type"`
 }
 
 type BaseImage struct {
@@ -97,12 +100,35 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output i
 	}
 
 	logrus.Debugf("Starting container")
-	err = dc.StartContainer(containerName)
+	_, err = EnsureRunning(dc, sc, co.Name)
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func EnsureRunning(dc DockerClient, sc SystemClient, envName string) (Environment, error) {
+	var env Environment
+
+	envs, err := Environments(dc, sc)
+	if err != nil {
+		return env, err
+	}
+	env, ok := envs[envName]
+
+	if !ok {
+		return env, fmt.Errorf("Environment %s doesn't exist.", envName)
+	}
+
+	if !env.Container.Running {
+		err = dc.StartContainer(env.Container.Name)
+		if err != nil {
+			return env, err
+		}
+	}
+
+	return GetEnvironment(dc, sc, envName)
 }
 
 func BuildImage(dc DockerClient, bo BuildOpts, output io.Writer) (string, error) {
@@ -238,6 +264,64 @@ func BaseImages(dc DockerClient) ([]*BaseImage, error) {
 	}
 
 	return baseImages, nil
+}
+
+func GetEnvironment(dc DockerClient, sc SystemClient, name string) (Environment, error) {
+	envs, err := Environments(dc, sc)
+	if err != nil {
+		return Environment{}, err
+	}
+
+	env, ok := envs[name]
+
+	if !ok {
+		return Environment{}, fmt.Errorf("%s environment not found", name)
+	}
+
+	return env, nil
+}
+
+func ConnectEnvironment(dc DockerClient, sc SystemClient, name string, extra []string) error {
+	env, err := EnsureRunning(dc, sc, name)
+	if err != nil {
+		return err
+	}
+
+	// TODO: support docker machine by inspecting DOCKER_HOST env var
+	host := "localhost"
+
+	var sshPort string
+	for _, port := range env.Container.Ports {
+		if port.ContainerPort == 22 {
+			sshPort = fmt.Sprintf("%d", port.HostPort)
+		}
+	}
+
+	if len(sshPort) == 0 {
+		return errors.New("Running container doesn't have ssh running")
+	}
+
+	key, err := sc.EnsureSSHKey()
+	if err != nil {
+		return err
+	}
+
+	opts := []string{
+		host,
+		"-p", sshPort,
+		"-i", key.privatePath,
+		"-o", "UserKnownHostsFile /dev/null",
+		"-o", "StrictHostKeyChecking no",
+	}
+
+	cmd := exec.Command(
+		"ssh", append(opts, extra...)...,
+	)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return cmd.Run()
 }
 
 func Environments(dc DockerClient, sc SystemClient) (map[string]Environment, error) {

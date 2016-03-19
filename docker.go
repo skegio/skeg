@@ -22,17 +22,17 @@ type ConnectOpts struct {
 }
 
 type Port struct {
-	HostIp        string
-	HostPort      int64
-	ContainerPort int64
-	Type          string
+	HostIp        string `json:"hostIp"`
+	HostPort      int64  `json:"hostPort"`
+	ContainerPort int64  `json:"containerPort"`
+	Type          string `json:"type"`
 }
 
 type Container struct {
-	Name    string
-	Image   string
-	Running bool
-	Ports   []Port
+	Name    string `json:"name"`
+	Image   string `json:"image"`
+	Running bool   `json:"running"`
+	Ports   []Port `json:"ports"`
 }
 
 type CreateContainerOpts struct {
