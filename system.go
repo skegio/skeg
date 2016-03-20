@@ -11,7 +11,6 @@ import (
 
 type SystemClient interface {
 	EnvironmentDirs() ([]string, error)
-	TypeFromImageName(imageName string) (string, error)
 	EnsureEnvironmentDir(envName string, keys SSHKey) (string, error)
 	EnsureSSHKey() (SSHKey, error)
 	Username() string
@@ -58,15 +57,6 @@ func (rsc *RealSystemClient) UID() int {
 
 func (rsc *RealSystemClient) GID() int {
 	return rsc.gid
-}
-
-func (rsc *RealSystemClient) TypeFromImageName(imageName string) (string, error) {
-
-	if matches := rsc.envRegexp.FindStringSubmatch(imageName); len(matches) == 2 {
-		return matches[1], nil
-	}
-
-	return "unknown", nil
 }
 
 func (rsc *RealSystemClient) EnsureEnvironmentDir(envName string, keys SSHKey) (string, error) {

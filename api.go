@@ -372,6 +372,7 @@ func Environments(dc DockerClient, sc SystemClient) (map[string]Environment, err
 			Image:   cont.Image,
 			Running: strings.Contains(cont.Status, "Up"),
 			Ports:   ports,
+			Labels:  cont.Labels,
 		}
 	}
 
@@ -388,12 +389,10 @@ func Environments(dc DockerClient, sc SystemClient) (map[string]Environment, err
 		}
 
 		if cont, ok := containersByName[contName]; ok {
-			image, _ := docker.ParseRepositoryTag(cont.Image)
-			envType, err := sc.TypeFromImageName(image)
-			if err != nil {
-				return nil, err
+			newEnv.Type, ok = cont.Labels["org.endot.dockdev.base"]
+			if !ok {
+				newEnv.Type = "unknown"
 			}
-			newEnv.Type = envType
 		}
 
 		envs[file] = newEnv
