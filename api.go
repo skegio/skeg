@@ -7,11 +7,13 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/docker/go-connections/nat"
 	"github.com/fsouza/go-dockerclient"
 )
 
@@ -50,6 +52,39 @@ type BuildOpts struct {
 
 var dockerOrg = "dockdev"
 
+func ParsePorts(portSpecs []string) ([]Port, error) {
+	ports := make([]Port, 0)
+
+	exposed, bindings, err := nat.ParsePortSpecs(portSpecs)
+	if err != nil {
+		return ports, err
+	}
+
+	for port, _ := range exposed {
+		portParts := strings.Split(string(port), "/")
+		contPort, proto := portParts[0], portParts[1]
+		cp, _ := strconv.Atoi(contPort)
+		if cp == 22 && proto == "tcp" {
+			return ports, errors.New("bad container port, 22 reserved for ssh")
+		}
+		for _, binding := range bindings[port] {
+			if strings.Contains(binding.HostPort, "-") {
+				return ports, errors.New("dynamic port ranges not supported (yet)")
+			}
+			hp, _ := strconv.Atoi(binding.HostPort)
+
+			ports = append(ports, Port{
+				binding.HostIP,
+				int64(hp),
+				int64(cp),
+				proto,
+			})
+		}
+	}
+
+	return ports, nil
+}
+
 func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output io.Writer) error {
 	logrus.Debugf("Checking if environment already exists")
 	envs, err := Environments(dc, sc)
@@ -59,6 +94,14 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output i
 	if _, ok := envs[co.Name]; ok {
 		return fmt.Errorf("Environment %s already exists", co.Name)
 	}
+
+	ports, err := ParsePorts(co.Ports)
+	if err != nil {
+		return err
+	}
+	ports = append(ports, Port{
+		"", 0, 22, "tcp",
+	})
 
 	logrus.Debugf("Ensuring SSH key is present")
 	key, err := sc.EnsureSSHKey()
@@ -86,10 +129,7 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output i
 		Name:     containerName,
 		Image:    imageName,
 		Hostname: co.Name,
-		Ports: []Port{
-			{"", 0, 22, "tcp"},
-			// TODO: add other ports
-		},
+		Ports:    ports,
 		Volumes: map[string]string{
 			path: fmt.Sprintf("/home/%s", sc.Username()),
 		},
