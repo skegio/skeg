@@ -128,5 +128,10 @@ func NewSystemClientWithBase(baseDir string) (*RealSystemClient, error) {
 		envRegexp: regexp.MustCompile(fmt.Sprintf("%s/(.*)dev", user)),
 	}
 
+	err := os.MkdirAll(baseDir, 0700)
+	if err != nil {
+		return nil, err
+	}
+
 	return &systemClient, nil
 }

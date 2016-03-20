@@ -33,8 +33,10 @@ func TestDir(t *testing.T) {
 	assert := assert.New(t)
 
 	tempdir, _ := ioutil.TempDir("", "ddc")
+	base := filepath.Join(tempdir, "envs")
+	defer os.RemoveAll(tempdir)
 
-	sc, _ := NewSystemClientWithBase(tempdir)
+	sc, _ := NewSystemClientWithBase(base)
 
 	key, err := sc.EnsureSSHKey()
 	assert.Nil(err)
