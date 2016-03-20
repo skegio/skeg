@@ -28,7 +28,7 @@ func (x *StopCommand) Execute(args []string) error {
 
 func init() {
 	_, err := parser.AddCommand("stop",
-		"Stop to an environment.",
+		"Stop an environment.",
 		"",
 		&stopCommand)
 

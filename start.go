@@ -28,7 +28,7 @@ func (x *StartCommand) Execute(args []string) error {
 
 func init() {
 	_, err := parser.AddCommand("start",
-		"Start to an environment.",
+		"Start an environment.",
 		"",
 		&startCommand)
 

@@ -45,7 +45,7 @@ func printEnvironment(env Environment) error {
 
 func init() {
 	_, err := parser.AddCommand("inspect",
-		"Inspect to an environment.",
+		"Inspect an environment.",
 		"",
 		&inspectCommand)
 
