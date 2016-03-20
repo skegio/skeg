@@ -85,6 +85,30 @@ func ParsePorts(portSpecs []string) ([]Port, error) {
 	return ports, nil
 }
 
+func DestroyEnvironment(dc DockerClient, sc SystemClient, envName string) error {
+
+	logrus.Debugf("Stopping environment")
+	env, err := EnsureStopped(dc, sc, envName)
+	if err != nil {
+		return err
+	}
+
+	if env.Container != nil {
+		err = dc.RemoveContainer(env.Container.Name)
+		if err != nil {
+			return err
+		}
+	}
+
+	logrus.Debugf("Removing local environment directory")
+	err = sc.RemoveEnvironmentDir(env.Name)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output io.Writer) error {
 	logrus.Debugf("Checking if environment already exists")
 	envs, err := Environments(dc, sc)
@@ -161,7 +185,7 @@ func EnsureRunning(dc DockerClient, sc SystemClient, envName string) (Environmen
 		return env, fmt.Errorf("Environment %s doesn't exist.", envName)
 	}
 
-	if !env.Container.Running {
+	if env.Container != nil && !env.Container.Running {
 		err = dc.StartContainer(env.Container.Name)
 		if err != nil {
 			return env, err
@@ -184,7 +208,7 @@ func EnsureStopped(dc DockerClient, sc SystemClient, envName string) (Environmen
 		return env, fmt.Errorf("Environment %s doesn't exist.", envName)
 	}
 
-	if env.Container.Running {
+	if env.Container != nil && env.Container.Running {
 		err = dc.StopContainer(env.Container.Name)
 		if err != nil {
 			return env, err
@@ -348,6 +372,11 @@ func ConnectEnvironment(dc DockerClient, sc SystemClient, name string, extra []s
 	env, err := EnsureRunning(dc, sc, name)
 	if err != nil {
 		return err
+	}
+
+	// TODO: create container
+	if env.Container == nil {
+		return errors.New("No container found")
 	}
 
 	// TODO: support docker machine by inspecting DOCKER_HOST env var

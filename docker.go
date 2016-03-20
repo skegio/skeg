@@ -52,6 +52,7 @@ type DockerClient interface {
 	CreateContainer(cco CreateContainerOpts) error
 	StartContainer(name string) error
 	StopContainer(name string) error
+	RemoveContainer(name string) error
 }
 
 type RealDockerClient struct {
@@ -68,6 +69,18 @@ func (rdc *RealDockerClient) StartContainer(name string) error {
 
 func (rdc *RealDockerClient) StopContainer(name string) error {
 	err := rdc.dcl.StopContainer(name, 10)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (rdc *RealDockerClient) RemoveContainer(name string) error {
+
+	removeOpts := docker.RemoveContainerOptions{
+		ID: name,
+	}
+	err := rdc.dcl.RemoveContainer(removeOpts)
 	if err != nil {
 		return err
 	}

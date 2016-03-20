@@ -12,6 +12,7 @@ import (
 type SystemClient interface {
 	EnvironmentDirs() ([]string, error)
 	EnsureEnvironmentDir(envName string, keys SSHKey) (string, error)
+	RemoveEnvironmentDir(envName string) error
 	EnsureSSHKey() (SSHKey, error)
 	Username() string
 	UID() int
@@ -84,6 +85,17 @@ func (rsc *RealSystemClient) EnsureEnvironmentDir(envName string, keys SSHKey) (
 	}
 
 	return envPath, nil
+}
+
+func (rsc *RealSystemClient) RemoveEnvironmentDir(envName string) error {
+
+	envPath := filepath.Join(rsc.baseDir, envName)
+	err := os.RemoveAll(envPath)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (rsc *RealSystemClient) EnsureSSHKey() (SSHKey, error) {

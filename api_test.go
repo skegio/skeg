@@ -49,6 +49,10 @@ func (rdc *TestDockerClient) StartContainer(name string) error {
 	return nil
 }
 
+func (rdc *TestDockerClient) RemoveContainer(name string) error {
+	return nil
+}
+
 func (rdc *TestDockerClient) StopContainer(name string) error {
 	return nil
 }
@@ -90,6 +94,10 @@ func (msc *MockSystemClient) GID() int {
 
 func (msc *MockSystemClient) EnsureEnvironmentDir(envName string, keys SSHKey) (string, error) {
 	return "", nil
+}
+
+func (msc *MockSystemClient) RemoveEnvironmentDir(envName string) error {
+	return nil
 }
 
 func (msc *MockSystemClient) EnsureSSHKey() (SSHKey, error) {
