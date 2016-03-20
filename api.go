@@ -117,7 +117,7 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output i
 	}
 
 	logrus.Debugf("Preparing local environment directory")
-	path, err := sc.EnsureEnvironmentDir("foo", key)
+	path, err := sc.EnsureEnvironmentDir(co.Name, key)
 	if err != nil {
 		return err
 	}
