@@ -11,16 +11,19 @@ type CreateCommand struct {
 	Image     string   `short:"i" long:"image" description:"Image to use for creating environment."`
 	Directory string   `short:"d" long:"directory" description:"Directory to mount inside (defaults to $PWD)."`
 	Ports     []string `short:"p" long:"port" description:"Ports to expose (similar to docker -p)."`
+	Volumes   []string `long:"volume" description:"Volume to mount (similar to docker -v)."`
 	Args      struct {
 		Name string `description:"Name of environment."`
 	} `positional-args:"yes" required:"yes"`
 }
 
-func (ccommand *CreateCommand) toCreateOpts(sc SystemClient) CreateOpts {
+func (ccommand *CreateCommand) toCreateOpts(sc SystemClient, workingDir string) CreateOpts {
 	return CreateOpts{
 		Name:       ccommand.Args.Name,
 		ProjectDir: ccommand.Directory,
 		Ports:      ccommand.Ports,
+		Volumes:    ccommand.Volumes,
+		WorkingDir: workingDir,
 		Build: BuildOpts{
 			Type:     ccommand.Type,
 			Version:  ccommand.Version,
@@ -45,7 +48,12 @@ func (x *CreateCommand) Execute(args []string) error {
 		return err
 	}
 
-	return CreateEnvironment(dc, sc, createCommand.toCreateOpts(sc), os.Stdout)
+	workingDir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	return CreateEnvironment(dc, sc, createCommand.toCreateOpts(sc, workingDir), os.Stdout)
 }
 
 func init() {

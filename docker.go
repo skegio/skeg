@@ -40,7 +40,7 @@ type CreateContainerOpts struct {
 	Name     string
 	Hostname string
 	Ports    []Port
-	Volumes  map[string]string
+	Volumes  []string
 	Image    string
 }
 
@@ -96,18 +96,13 @@ func (rdc *RealDockerClient) CreateContainer(cco CreateContainerOpts) error {
 		portBindings[dport] = []docker.PortBinding{{port.HostIp, fmt.Sprintf("%d", port.HostPort)}}
 	}
 
-	binds := make([]string, 0)
-	for src, dest := range cco.Volumes {
-		binds = append(binds, fmt.Sprintf("%s:%s", src, dest))
-	}
-
 	config := docker.Config{
 		ExposedPorts: exposedPorts,
 		Image:        cco.Image,
 		Hostname:     cco.Hostname,
 	}
 	hostConfig := docker.HostConfig{
-		Binds:        binds,
+		Binds:        cco.Volumes,
 		PortBindings: portBindings,
 	}
 

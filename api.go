@@ -39,6 +39,8 @@ type CreateOpts struct {
 	Name       string
 	ProjectDir string
 	Ports      []string
+	Volumes    []string
+	WorkingDir string
 	Build      BuildOpts
 }
 
@@ -147,6 +149,11 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output i
 	}
 
 	logrus.Debugf("Creating container")
+	volumes := co.Volumes
+	volumes = append(volumes, fmt.Sprintf("%s:/home/%s", path, sc.Username()))
+	if len(co.WorkingDir) > 0 {
+		volumes = append(volumes, fmt.Sprintf("%s:/home/%s/proj", co.WorkingDir, sc.Username()))
+	}
 
 	containerName := fmt.Sprintf("ddc_%s", co.Name)
 	ccont := CreateContainerOpts{
@@ -154,9 +161,7 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output i
 		Image:    imageName,
 		Hostname: co.Name,
 		Ports:    ports,
-		Volumes: map[string]string{
-			path: fmt.Sprintf("/home/%s", sc.Username()),
-		},
+		Volumes:  volumes,
 	}
 	err = dc.CreateContainer(ccont)
 	if err != nil {
