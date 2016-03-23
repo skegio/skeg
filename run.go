@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
+
+	"github.com/Sirupsen/logrus"
 )
 
 type RunCommand struct {
@@ -57,7 +59,7 @@ func (x *RunCommand) Execute(args []string) error {
 
 	err = ConnectEnvironment(dc, sc, runCommand.Args.Name, connectCommand.Args.Rest)
 	if err != nil {
-		return err
+		logrus.Debugf("error when running shell: %s", err)
 	}
 
 	if runCommand.Remove {
