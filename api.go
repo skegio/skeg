@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -456,8 +457,18 @@ func ConnectEnvironment(dc DockerClient, sc SystemClient, name string, extra []s
 		return errors.New("No container found")
 	}
 
-	// TODO: support docker machine by inspecting DOCKER_HOST env var
-	host := "localhost"
+	var host string
+	if env_endpoint := os.Getenv("DOCKER_HOST"); len(env_endpoint) > 0 {
+		re, err := regexp.Compile(`(tcp://)?([^:]+)(:\d+)?`)
+		if err != nil {
+			return err
+		}
+
+		res := re.FindAllStringSubmatch(env_endpoint, -1)
+		host = res[0][2]
+	} else {
+		host = "localhost"
+	}
 
 	var sshPort string
 	for _, port := range env.Container.Ports {
