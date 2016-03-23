@@ -6,13 +6,15 @@ import (
 )
 
 type CreateCommand struct {
-	Type      string   `short:"t" long:"type" description:"Type of environment."`
-	Version   string   `short:"v" long:"version" description:"Version of environment type."`
-	Image     string   `short:"i" long:"image" description:"Image to use for creating environment."`
-	Directory string   `short:"d" long:"directory" description:"Directory to mount inside (defaults to $PWD)."`
-	Ports     []string `short:"p" long:"port" description:"Ports to expose (similar to docker -p)."`
-	Volumes   []string `long:"volume" description:"Volume to mount (similar to docker -v)."`
-	Args      struct {
+	Type       string   `short:"t" long:"type" description:"Type of environment."`
+	Version    string   `short:"v" long:"version" description:"Version of environment type."`
+	Image      string   `short:"i" long:"image" description:"Image to use for creating environment."`
+	Directory  string   `short:"d" long:"directory" description:"Directory to mount inside (defaults to $PWD)."`
+	Ports      []string `short:"p" long:"port" description:"Ports to expose (similar to docker -p)."`
+	Volumes    []string `long:"volume" description:"Volume to mount (similar to docker -v)."`
+	ForceBuild bool     `long:"force-build" description:"Force building of new user image."`
+	ForcePull  bool     `long:"force-pull" description:"Force pulling base image."`
+	Args       struct {
 		Name string `description:"Name of environment."`
 	} `positional-args:"yes" required:"yes"`
 }
@@ -24,13 +26,17 @@ func (ccommand *CreateCommand) toCreateOpts(sc SystemClient, workingDir string) 
 		Ports:      ccommand.Ports,
 		Volumes:    ccommand.Volumes,
 		WorkingDir: workingDir,
+		ForceBuild: ccommand.ForceBuild || ccommand.ForcePull,
 		Build: BuildOpts{
-			Type:     ccommand.Type,
-			Version:  ccommand.Version,
-			Image:    ccommand.Image,
-			Username: sc.Username(),
-			UID:      sc.UID(),
-			GID:      sc.GID(),
+			Image: ImageOpts{
+				Type:    ccommand.Type,
+				Version: ccommand.Version,
+				Image:   ccommand.Image,
+			},
+			ForcePull: ccommand.ForcePull,
+			Username:  sc.Username(),
+			UID:       sc.UID(),
+			GID:       sc.GID(),
 		},
 	}
 }

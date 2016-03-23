@@ -17,13 +17,17 @@ func (ccommand *RunCommand) toCreateOpts(sc SystemClient, workingDir string) Cre
 		Ports:      ccommand.Ports,
 		Volumes:    ccommand.Volumes,
 		WorkingDir: workingDir,
+		ForceBuild: ccommand.ForceBuild || ccommand.ForcePull,
 		Build: BuildOpts{
-			Type:     ccommand.Type,
-			Version:  ccommand.Version,
-			Image:    ccommand.Image,
-			Username: sc.Username(),
-			UID:      sc.UID(),
-			GID:      sc.GID(),
+			Image: ImageOpts{
+				Type:    ccommand.Type,
+				Version: ccommand.Version,
+				Image:   ccommand.Image,
+			},
+			ForcePull: ccommand.ForcePull,
+			Username:  sc.Username(),
+			UID:       sc.UID(),
+			GID:       sc.GID(),
 		},
 	}
 }

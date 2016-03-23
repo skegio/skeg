@@ -49,6 +49,7 @@ type CreateContainerOpts struct {
 type DockerClient interface {
 	ListContainers() ([]docker.APIContainers, error)
 	ListImages() ([]docker.APIImages, error)
+	ListImagesWithLabels(labels []string) ([]docker.APIImages, error)
 	PullImage(image string, output *os.File) error
 	BuildImage(name string, dockerfile string, output io.Writer) error
 	CreateContainer(cco CreateContainerOpts) error
@@ -154,6 +155,21 @@ func (rdc *RealDockerClient) ListImages() ([]docker.APIImages, error) {
 	var images []docker.APIImages
 
 	images, err := rdc.dcl.ListImages(docker.ListImagesOptions{})
+	if err != nil {
+		return images, err
+	}
+
+	return images, nil
+}
+
+func (rdc *RealDockerClient) ListImagesWithLabels(labels []string) ([]docker.APIImages, error) {
+	var images []docker.APIImages
+
+	images, err := rdc.dcl.ListImages(docker.ListImagesOptions{
+		Filters: map[string][]string{
+			"label": labels,
+		},
+	})
 	if err != nil {
 		return images, err
 	}

@@ -6,21 +6,25 @@ import (
 )
 
 type BuildCommand struct {
-	Type    string `short:"t" long:"type" description:"Type of environment."`
-	Version string `short:"v" long:"version" description:"Version of environment type."`
-	Image   string `short:"i" long:"image" description:"Image to use for creating environment."`
+	Type      string `short:"t" long:"type" description:"Type of environment."`
+	Version   string `short:"v" long:"version" description:"Version of environment type."`
+	Image     string `short:"i" long:"image" description:"Image to use for creating environment."`
+	ForcePull bool   `long:"force-pull" description:"Force pulling base image."`
 }
 
 var buildCommand BuildCommand
 
 func (ccommand *BuildCommand) toBuildOpts(sc SystemClient) BuildOpts {
 	return BuildOpts{
-		Type:     ccommand.Type,
-		Version:  ccommand.Version,
-		Image:    ccommand.Image,
-		Username: sc.Username(),
-		UID:      sc.UID(),
-		GID:      sc.GID(),
+		Image: ImageOpts{
+			Type:    ccommand.Type,
+			Version: ccommand.Version,
+			Image:   ccommand.Image,
+		},
+		ForcePull: ccommand.ForcePull,
+		Username:  sc.Username(),
+		UID:       sc.UID(),
+		GID:       sc.GID(),
 	}
 }
 

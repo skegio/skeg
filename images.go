@@ -3,7 +3,10 @@ package main
 import "fmt"
 
 type ImagesCommand struct {
-	// nothing yet
+	Base    bool   `short:"b" long:"base" description:"List base images."`
+	Type    string `short:"t" long:"type" description:"Type of environment."`
+	Version string `short:"v" long:"version" description:"Version of environment type."`
+	Image   string `short:"i" long:"image" description:"Image to use for creating environment."`
 }
 
 var imagesCommand ImagesCommand
@@ -12,6 +15,24 @@ func (x *ImagesCommand) Execute(args []string) error {
 	dc, err := NewDockerClient(globalOptions.toConnectOpts())
 	if err != nil {
 		return err
+	}
+
+	if len(imagesCommand.Type) > 0 || len(imagesCommand.Image) > 0 {
+		sc, err := NewSystemClient()
+		if err != nil {
+			return err
+		}
+
+		userImages, err := UserImages(dc, sc, ImageOpts{
+			Type:    imagesCommand.Type,
+			Version: imagesCommand.Version,
+			Image:   imagesCommand.Image,
+		})
+		if err != nil {
+			return err
+		}
+
+		return listUserImages(userImages)
 	}
 
 	baseImages, err := BaseImages(dc)
@@ -36,6 +57,14 @@ func listImages(images []*BaseImage) error {
 			}
 			fmt.Printf("    %s%s%s\n", tag.Name, pulled, preferred)
 		}
+	}
+	return nil
+}
+
+func listUserImages(images []UserImage) error {
+	for _, im := range images {
+		fmt.Printf("%s: (%d aliases)\n", im.Name, len(im.Aliases))
+		fmt.Printf("  build time: %s\n", im.Labels["org.endot.dockdev.buildtime"])
 	}
 	return nil
 }

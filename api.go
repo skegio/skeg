@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
 	"strconv"
 	"strings"
 	"text/template"
@@ -22,11 +23,23 @@ type Environment struct {
 	Type      string     `json:"type"`
 }
 
+type UserImage struct {
+	Name    string
+	Aliases []string
+	Labels  map[string]string
+}
+
 type BaseImage struct {
 	Name        string
 	Description string
 	Tags        []*BaseImageTag
 }
+
+type ByName []UserImage
+
+func (a ByName) Len() int           { return len(a) }
+func (a ByName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a ByName) Less(i, j int) bool { return a[i].Name < a[j].Name }
 
 type BaseImageTag struct {
 	Name      string
@@ -40,15 +53,21 @@ type CreateOpts struct {
 	Ports      []string
 	Volumes    []string
 	WorkingDir string
+	ForceBuild bool
 	Build      BuildOpts
 }
 
 type BuildOpts struct {
-	Type     string
-	Version  string
-	Image    string
-	Username string
-	UID, GID int
+	Username  string
+	UID, GID  int
+	Image     ImageOpts
+	ForcePull bool
+}
+
+type ImageOpts struct {
+	Type    string
+	Version string
+	Image   string
 }
 
 var dockerOrg = "dockdev"
@@ -134,11 +153,17 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *
 		return err
 	}
 
-	// TODO: use a previously built image
-	logrus.Debugf("Building customized docker image")
-	imageName, err := BuildImage(dc, co.Build, output)
-	if err != nil {
-		return err
+	var imageName string
+	userImages, err := UserImages(dc, sc, co.Build.Image)
+	if co.ForceBuild || len(userImages) == 0 {
+		logrus.Debugf("Building customized docker image")
+		imageName, err = BuildImage(dc, co.Build, output)
+		if err != nil {
+			return err
+		}
+	} else {
+		imageName = userImages[0].Name
+		logrus.Infof("Using existing image %s", imageName)
 	}
 
 	logrus.Debugf("Preparing local environment directory")
@@ -223,19 +248,18 @@ func EnsureStopped(dc DockerClient, sc SystemClient, envName string) (Environmen
 	return GetEnvironment(dc, sc, envName)
 }
 
-func BuildImage(dc DockerClient, bo BuildOpts, output *os.File) (string, error) {
-	logrus.Debugf("Figuring out which image to use")
+func ResolveImage(dc DockerClient, io ImageOpts) (string, error) {
 	var image string
-	if len(bo.Type) > 0 {
+	if len(io.Type) > 0 {
 		baseImages, err := BaseImages(dc)
 		if err != nil {
 			return "", err
 		}
 
 		var matcher func(*BaseImageTag) bool
-		if len(bo.Version) > 0 {
+		if len(io.Version) > 0 {
 			matcher = func(tag *BaseImageTag) bool {
-				return tag.Name == bo.Version
+				return tag.Name == io.Version
 			}
 		} else {
 			matcher = func(tag *BaseImageTag) bool {
@@ -243,7 +267,7 @@ func BuildImage(dc DockerClient, bo BuildOpts, output *os.File) (string, error) 
 			}
 		}
 		for _, im := range baseImages {
-			if bo.Type == im.Name {
+			if io.Type == im.Name {
 				for _, tag := range im.Tags {
 					if matcher(tag) {
 						image = fmt.Sprintf("%s/%s:%s", dockerOrg, im.Name, tag.Name)
@@ -254,15 +278,28 @@ func BuildImage(dc DockerClient, bo BuildOpts, output *os.File) (string, error) 
 		if len(image) == 0 {
 			return "", fmt.Errorf("No image found")
 		}
-	} else if len(bo.Image) > 0 {
-		image = bo.Image
+	} else if len(io.Image) > 0 {
+		image = io.Image
 	}
 
-	logrus.Debugf("Using image: %s", image)
-	err := EnsureImage(dc, image, output)
+	return image, nil
+}
+
+func BuildImage(dc DockerClient, bo BuildOpts, output *os.File) (string, error) {
+	var err error
+	logrus.Debugf("Figuring out which image to use")
+	image, err := ResolveImage(dc, bo.Image)
 	if err != nil {
 		return "", err
 	}
+
+	logrus.Debugf("Using image: %s", image)
+	err = EnsureImage(dc, image, bo.ForcePull, output)
+	if err != nil {
+		return "", err
+	}
+
+	now := time.Now()
 
 	logrus.Debugf("Building image")
 	dockerfileTmpl := `FROM {{ .Image }}
@@ -274,14 +311,16 @@ RUN (addgroup --gid {{ .Gid }} {{ .Username }} || /bin/true) && \
 LABEL org.endot.dockdev.username={{ .Username }} \
       org.endot.dockdev.gid={{ .Gid }} \
       org.endot.dockdev.uid={{ .Uid }} \
-      org.endot.dockdev.base={{ .Image }}
+      org.endot.dockdev.base={{ .Image }} \
+      org.endot.dockdev.buildtime="{{ .Time }}"
+
 `
 
 	dockerfileData := struct {
-		Username, Image string
-		Uid, Gid        int
+		Username, Image, Time string
+		Uid, Gid              int
 	}{
-		bo.Username, image, bo.UID, bo.GID,
+		bo.Username, image, now.Format(time.UnixDate), bo.UID, bo.GID,
 	}
 
 	tmpl := template.Must(template.New("dockerfile").Parse(dockerfileTmpl))
@@ -292,7 +331,7 @@ LABEL org.endot.dockdev.username={{ .Username }} \
 		return "", nil
 	}
 
-	imageName := fmt.Sprintf("ddc-%s-%d", bo.Username, time.Now().Unix())
+	imageName := fmt.Sprintf("ddc-%s-%s", bo.Username, now.Format("20060102150405"))
 	err = dc.BuildImage(imageName, dockerfileBytes.String(), output)
 
 	if err != nil {
@@ -300,6 +339,39 @@ LABEL org.endot.dockdev.username={{ .Username }} \
 	}
 
 	return imageName, nil
+}
+
+func UserImages(dc DockerClient, sc SystemClient, io ImageOpts) ([]UserImage, error) {
+	images := make([]UserImage, 0)
+
+	image, err := ResolveImage(dc, io)
+	if err != nil {
+		return images, err
+	}
+
+	labels := []string{
+		fmt.Sprintf("org.endot.dockdev.base=%s", image),
+		fmt.Sprintf("org.endot.dockdev.username=%s", sc.Username()),
+	}
+	dockerImages, err := dc.ListImagesWithLabels(labels)
+	if err != nil {
+		return images, err
+	}
+
+	for _, dockerImage := range dockerImages {
+		tags := dockerImage.RepoTags
+		sort.Strings(tags)
+
+		images = append(images, UserImage{
+			tags[0],
+			tags[1:],
+			dockerImage.Labels,
+		})
+	}
+
+	sort.Sort(sort.Reverse(ByName(images)))
+
+	return images, nil
 }
 
 func BaseImages(dc DockerClient) ([]*BaseImage, error) {
@@ -475,21 +547,23 @@ func Environments(dc DockerClient, sc SystemClient) (map[string]Environment, err
 	return envs, nil
 }
 
-func EnsureImage(dc DockerClient, image string, output *os.File) error {
-	dockerImages, err := dc.ListImages()
-	if err != nil {
-		return err
-	}
-
+func EnsureImage(dc DockerClient, image string, forcePull bool, output *os.File) error {
 	_, tag := dc.ParseRepositoryTag(image)
 	if len(tag) == 0 {
 		image = fmt.Sprintf("%s:latest", image)
 	}
 
-	for _, im := range dockerImages {
-		for _, tag := range im.RepoTags {
-			if tag == image {
-				return nil
+	if !forcePull {
+		dockerImages, err := dc.ListImages()
+		if err != nil {
+			return err
+		}
+
+		for _, im := range dockerImages {
+			for _, tag := range im.RepoTags {
+				if tag == image {
+					return nil
+				}
 			}
 		}
 	}
