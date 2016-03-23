@@ -10,6 +10,8 @@ import (
 	"path"
 	"time"
 
+	"github.com/Sirupsen/logrus"
+	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/fsouza/go-dockerclient"
 )
 
@@ -47,12 +49,13 @@ type CreateContainerOpts struct {
 type DockerClient interface {
 	ListContainers() ([]docker.APIContainers, error)
 	ListImages() ([]docker.APIImages, error)
-	PullImage(image string, output io.Writer) error
+	PullImage(image string, output *os.File) error
 	BuildImage(name string, dockerfile string, output io.Writer) error
 	CreateContainer(cco CreateContainerOpts) error
 	StartContainer(name string) error
 	StopContainer(name string) error
 	RemoveContainer(name string) error
+	ParseRepositoryTag(repoTag string) (string, string)
 }
 
 type RealDockerClient struct {
@@ -158,21 +161,31 @@ func (rdc *RealDockerClient) ListImages() ([]docker.APIImages, error) {
 	return images, nil
 }
 
-func (rdc *RealDockerClient) PullImage(fullImage string, output io.Writer) error {
+func (rdc *RealDockerClient) ParseRepositoryTag(repoTag string) (string, string) {
+	return docker.ParseRepositoryTag(repoTag)
+}
+
+func (rdc *RealDockerClient) PullImage(fullImage string, output *os.File) error {
 	image, tag := docker.ParseRepositoryTag(fullImage)
 
+	pipeRead, pipeWrite := io.Pipe()
 	opts := docker.PullImageOptions{
-		Repository:   image,
-		Tag:          tag,
-		OutputStream: output,
-	}
-	// TODO: pull auth config from dockercfg
-	err := rdc.dcl.PullImage(opts, docker.AuthConfiguration{})
-	if err != nil {
-		return err
+		Repository:    image,
+		Tag:           tag,
+		OutputStream:  pipeWrite,
+		RawJSONStream: true,
 	}
 
-	return nil
+	// TODO: pull auth config from dockercfg
+	go func() {
+		rdc.dcl.PullImage(opts, docker.AuthConfiguration{})
+		err := pipeWrite.Close()
+		if err != nil {
+			logrus.Warnf("Error closing pipe: %s", err)
+		}
+	}()
+
+	return jsonmessage.DisplayJSONMessagesStream(pipeRead, output, output.Fd(), true, nil)
 }
 
 func NewDockerClient(opts ConnectOpts) (*RealDockerClient, error) {

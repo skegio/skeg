@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"strconv"
@@ -111,7 +110,7 @@ func DestroyEnvironment(dc DockerClient, sc SystemClient, envName string) error 
 	return nil
 }
 
-func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output io.Writer) error {
+func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *os.File) error {
 	logrus.Debugf("Checking if environment already exists")
 	envs, err := Environments(dc, sc)
 	if err != nil {
@@ -224,7 +223,7 @@ func EnsureStopped(dc DockerClient, sc SystemClient, envName string) (Environmen
 	return GetEnvironment(dc, sc, envName)
 }
 
-func BuildImage(dc DockerClient, bo BuildOpts, output io.Writer) (string, error) {
+func BuildImage(dc DockerClient, bo BuildOpts, output *os.File) (string, error) {
 	logrus.Debugf("Figuring out which image to use")
 	var image string
 	if len(bo.Type) > 0 {
@@ -476,13 +475,14 @@ func Environments(dc DockerClient, sc SystemClient) (map[string]Environment, err
 	return envs, nil
 }
 
-func EnsureImage(dc DockerClient, image string, output io.Writer) error {
+func EnsureImage(dc DockerClient, image string, output *os.File) error {
 	dockerImages, err := dc.ListImages()
 	if err != nil {
 		return err
 	}
 
-	if !strings.HasSuffix(image, ":latest") {
+	_, tag := dc.ParseRepositoryTag(image)
+	if len(tag) == 0 {
 		image = fmt.Sprintf("%s:latest", image)
 	}
 
