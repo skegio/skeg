@@ -482,6 +482,10 @@ func EnsureImage(dc DockerClient, image string, output io.Writer) error {
 		return err
 	}
 
+	if !strings.HasSuffix(image, ":latest") {
+		image = fmt.Sprintf("%s:latest", image)
+	}
+
 	for _, im := range dockerImages {
 		for _, tag := range im.RepoTags {
 			if tag == image {
