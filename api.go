@@ -151,8 +151,9 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output i
 	logrus.Debugf("Creating container")
 	volumes := co.Volumes
 	volumes = append(volumes, fmt.Sprintf("%s:/home/%s", path, sc.Username()))
+	workdirParts := strings.Split(co.WorkingDir, string(os.PathSeparator))
 	if len(co.WorkingDir) > 0 {
-		volumes = append(volumes, fmt.Sprintf("%s:/home/%s/proj", co.WorkingDir, sc.Username()))
+		volumes = append(volumes, fmt.Sprintf("%s:/home/%s/%s", co.WorkingDir, sc.Username(), workdirParts[len(workdirParts)-1]))
 	}
 
 	containerName := fmt.Sprintf("ddc_%s", co.Name)
