@@ -132,9 +132,16 @@ func NewSystemClientWithBase(baseDir string) (*RealSystemClient, error) {
 		return nil, fmt.Errorf("$USER environment variable not found")
 	}
 
+	var uid int
+	if env_endpoint := os.Getenv("DOCKER_MACHINE_NAME"); len(env_endpoint) > 0 {
+		uid = 1000
+	} else {
+		uid = os.Getuid()
+	}
+
 	systemClient := RealSystemClient{
 		user:      user,
-		uid:       os.Getuid(),
+		uid:       uid,
 		gid:       os.Getgid(),
 		baseDir:   baseDir,
 		envRegexp: regexp.MustCompile(fmt.Sprintf("%s/(.*)dev", user)),
