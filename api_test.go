@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"errors"
 	"io"
 	"io/ioutil"
@@ -33,7 +32,18 @@ func (rdc *TestDockerClient) ListImages() ([]docker.APIImages, error) {
 	return rdc.images, nil
 }
 
-func (rdc *TestDockerClient) PullImage(fullImage string, output io.Writer) error {
+func (rdc *TestDockerClient) ListImagesWithLabels(labels []string) ([]docker.APIImages, error) {
+	if err, ok := rdc.failures["ListImages"]; ok {
+		return []docker.APIImages{}, err
+	}
+	return rdc.images, nil
+}
+
+func (rdc *TestDockerClient) ParseRepositoryTag(repoTag string) (string, string) {
+	return docker.ParseRepositoryTag(repoTag)
+}
+
+func (rdc *TestDockerClient) PullImage(fullImage string, output *os.File) error {
 	return nil
 }
 
@@ -246,16 +256,16 @@ func TestEnsureImage(t *testing.T) {
 		},
 	)
 
-	err := EnsureImage(dc, "testimage", bytes.NewBuffer(nil))
+	err := EnsureImage(dc, "testimage", false, nil)
 	assert.Nil(err)
 
-	err = EnsureImage(dc, imageName, bytes.NewBuffer(nil))
+	err = EnsureImage(dc, imageName, false, nil)
 	assert.Nil(err)
 
 	liError := errors.New("Listing error")
 	dc.AddFailure("ListImages", liError)
 
-	err = EnsureImage(dc, imageName, bytes.NewBuffer(nil))
+	err = EnsureImage(dc, imageName, false, nil)
 	assert.NotNil(err)
 	assert.Equal(err, liError)
 }
