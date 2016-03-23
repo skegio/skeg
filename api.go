@@ -488,6 +488,7 @@ func ConnectEnvironment(dc DockerClient, sc SystemClient, name string, extra []s
 
 	opts := []string{
 		host,
+		"-l", sc.Username(),
 		"-p", sshPort,
 		"-i", key.privatePath,
 		"-o", "UserKnownHostsFile /dev/null",
