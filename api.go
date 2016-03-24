@@ -480,7 +480,8 @@ func BaseImages(dc DockerClient) ([]*BaseImage, error) {
 			"clojure",
 			"Clojure image",
 			[]*BaseImageTag{
-				{"java7", false, true},
+				{"java7", false, false},
+				{"java8", false, true},
 			},
 		},
 		{
@@ -489,7 +490,7 @@ func BaseImages(dc DockerClient) ([]*BaseImage, error) {
 			[]*BaseImageTag{
 				{"both", false, true},
 				{"2.7", false, false},
-				{"3.4", false, false},
+				{"3.5", false, false},
 			},
 		},
 	}
