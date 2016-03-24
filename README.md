@@ -1,2 +1,3 @@
-# ddc-go
-Docker Dev Containers
+# skeg
+
+Easily develop inside Docker containers.
