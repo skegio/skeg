@@ -64,7 +64,7 @@ func listImages(images []*BaseImage) error {
 func listUserImages(images []UserImage) error {
 	for _, im := range images {
 		fmt.Printf("%s: (%d aliases)\n", im.Name, len(im.Aliases))
-		fmt.Printf("  build time: %s\n", im.Labels["org.endot.dockdev.buildtime"])
+		fmt.Printf("  build time: %s\n", im.Labels["skeg.io/image/buildtime"])
 	}
 	return nil
 }

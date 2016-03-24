@@ -173,7 +173,7 @@ func RebuildEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output 
 
 	logrus.Debugf("Set image opts")
 	co.Build.Image = ImageOpts{
-		Image: env.Container.Labels["org.endot.dockdev.base"],
+		Image: env.Container.Labels["skeg.io/image/base"],
 	}
 	// fmt.Println(co)
 
@@ -236,7 +236,7 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *
 		volumes = append(volumes, fmt.Sprintf("%s:/home/%s/%s", co.ProjectDir, sc.Username(), workdirParts[len(workdirParts)-1]))
 	}
 
-	containerName := fmt.Sprintf("ddc_%s", co.Name)
+	containerName := fmt.Sprintf("%s_%s", CONT_PREFIX, co.Name)
 	ccont := CreateContainerOpts{
 		Name:     containerName,
 		Image:    imageName,
@@ -339,7 +339,7 @@ func ResolveImage(dc DockerClient, io ImageOpts) (string, error) {
 			if io.Type == im.Name {
 				for _, tag := range im.Tags {
 					if matcher(tag) {
-						image = fmt.Sprintf("%s/%s:%s", dockerOrg, im.Name, tag.Name)
+						image = fmt.Sprintf("%s/%s:%s", DOCKER_HUB_ORG, im.Name, tag.Name)
 					}
 				}
 			}
@@ -379,11 +379,11 @@ RUN (addgroup --gid {{ .Gid }} {{ .Username }} || /bin/true) && \
 
 {{ .TzSet }}
 
-LABEL org.endot.dockdev.username={{ .Username }} \
-      org.endot.dockdev.gid={{ .Gid }} \
-      org.endot.dockdev.uid={{ .Uid }} \
-      org.endot.dockdev.base={{ .Image }} \
-      org.endot.dockdev.buildtime="{{ .Time }}"
+LABEL skeg.io/image/username={{ .Username }} \
+      skeg.io/image/gid={{ .Gid }} \
+      skeg.io/image/uid={{ .Uid }} \
+      skeg.io/image/base={{ .Image }} \
+      skeg.io/image/buildtime="{{ .Time }}"
 
 `
 	// TODO: make timezone setting work on other distributions
@@ -407,7 +407,7 @@ LABEL org.endot.dockdev.username={{ .Username }} \
 		return "", nil
 	}
 
-	imageName := fmt.Sprintf("ddc-%s-%s", bo.Username, now.Format("20060102150405"))
+	imageName := fmt.Sprintf("%s-%s-%s", CONT_PREFIX, bo.Username, now.Format("20060102150405"))
 	err = dc.BuildImage(imageName, dockerfileBytes.String(), output)
 
 	if err != nil {
@@ -426,8 +426,8 @@ func UserImages(dc DockerClient, sc SystemClient, io ImageOpts) ([]UserImage, er
 	}
 
 	labels := []string{
-		fmt.Sprintf("org.endot.dockdev.base=%s", image),
-		fmt.Sprintf("org.endot.dockdev.username=%s", sc.Username()),
+		fmt.Sprintf("skeg.io/image/base=%s", image),
+		fmt.Sprintf("skeg.io/image/username=%s", sc.Username()),
 	}
 	dockerImages, err := dc.ListImagesWithLabels(labels)
 	if err != nil {
@@ -615,14 +615,14 @@ func Environments(dc DockerClient, sc SystemClient) (map[string]Environment, err
 	}
 
 	for _, file := range files {
-		contName := fmt.Sprintf("ddc_%s", file)
+		contName := fmt.Sprintf("%s_%s", CONT_PREFIX, file)
 		newEnv := Environment{
 			Name:      file,
 			Container: containersByName[contName],
 		}
 
 		if cont, ok := containersByName[contName]; ok {
-			newEnv.Type, ok = cont.Labels["org.endot.dockdev.base"]
+			newEnv.Type, ok = cont.Labels["skeg.io/image/base"]
 			if !ok {
 				newEnv.Type = "unknown"
 			}

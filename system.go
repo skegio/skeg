@@ -99,12 +99,12 @@ func (rsc *RealSystemClient) RemoveEnvironmentDir(envName string) error {
 }
 
 func (rsc *RealSystemClient) EnsureSSHKey() (SSHKey, error) {
-	privPath := filepath.Join(rsc.baseDir, "ddc_key")
-	pubPath := filepath.Join(rsc.baseDir, "ddc_key.pub")
+	privPath := filepath.Join(rsc.baseDir, "skeg_key")
+	pubPath := filepath.Join(rsc.baseDir, "skeg_key.pub")
 
 	if _, err := os.Stat(privPath); os.IsNotExist(err) {
 
-		cmd := exec.Command("ssh-keygen", "-q", "-t", "rsa", "-N", "", "-C", "ddc key", "-f", privPath)
+		cmd := exec.Command("ssh-keygen", "-q", "-t", "rsa", "-N", "", "-C", "skeg key", "-f", privPath)
 		err := cmd.Run()
 		if err != nil {
 			return SSHKey{}, err
