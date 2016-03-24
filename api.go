@@ -389,7 +389,7 @@ LABEL skeg.io/image/username={{ .Username }} \
 	// TODO: make timezone setting work on other distributions
 	var tzenv string
 	if len(bo.TimeZone) > 0 {
-		tzenv = fmt.Sprintf(`RUN echo "%s" > /etc/timezone && dpkg-reconfigure --frontend noninteractive tzdata`, bo.TimeZone)
+		tzenv = fmt.Sprintf(`RUN ln -sf /usr/share/zoneinfo/%s /etc/localtime && dpkg-reconfigure --frontend noninteractive tzdata`, bo.TimeZone)
 	}
 
 	dockerfileData := struct {
