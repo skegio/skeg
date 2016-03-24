@@ -48,6 +48,7 @@ type CreateContainerOpts struct {
 
 type DockerClient interface {
 	ListContainers() ([]docker.APIContainers, error)
+	InspectContainer(cont string) (*docker.Container, error)
 	ListImages() ([]docker.APIImages, error)
 	ListImagesWithLabels(labels []string) ([]docker.APIImages, error)
 	PullImage(image string, output *os.File) error
@@ -61,6 +62,10 @@ type DockerClient interface {
 
 type RealDockerClient struct {
 	dcl *docker.Client
+}
+
+func (rdc *RealDockerClient) InspectContainer(cont string) (*docker.Container, error) {
+	return rdc.dcl.InspectContainer(cont)
 }
 
 func (rdc *RealDockerClient) StartContainer(name string) error {

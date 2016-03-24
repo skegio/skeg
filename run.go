@@ -13,12 +13,17 @@ type RunCommand struct {
 }
 
 func (ccommand *RunCommand) toCreateOpts(sc SystemClient, workingDir string) CreateOpts {
+	var projectDir string
+	if len(ccommand.Directory) > 0 {
+		projectDir = ccommand.Directory
+	} else {
+		projectDir = workingDir
+	}
 	return CreateOpts{
 		Name:       ccommand.Args.Name,
-		ProjectDir: ccommand.Directory,
+		ProjectDir: projectDir,
 		Ports:      ccommand.Ports,
 		Volumes:    ccommand.Volumes,
-		WorkingDir: workingDir,
 		ForceBuild: ccommand.ForceBuild || ccommand.ForcePull,
 		Build: BuildOpts{
 			Image: ImageOpts{

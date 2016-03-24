@@ -5,11 +5,7 @@ import (
 	"os"
 )
 
-type CreateCommand struct {
-	Type       string   `short:"t" long:"type" description:"Type of environment."`
-	Version    string   `short:"v" long:"version" description:"Version of environment type."`
-	Image      string   `short:"i" long:"image" description:"Image to use for creating environment."`
-	Directory  string   `short:"d" long:"directory" description:"Directory to mount inside (defaults to $PWD)."`
+type RebuildCommand struct {
 	Ports      []string `short:"p" long:"port" description:"Ports to expose (similar to docker -p)."`
 	Volumes    []string `long:"volume" description:"Volume to mount (similar to docker -v)."`
 	ForceBuild bool     `long:"force-build" description:"Force building of new user image."`
@@ -20,25 +16,14 @@ type CreateCommand struct {
 	} `positional-args:"yes" required:"yes"`
 }
 
-func (ccommand *CreateCommand) toCreateOpts(sc SystemClient, workingDir string) CreateOpts {
-	var projectDir string
-	if len(ccommand.Directory) > 0 {
-		projectDir = ccommand.Directory
-	} else {
-		projectDir = workingDir
-	}
+func (ccommand *RebuildCommand) toCreateOpts(sc SystemClient) CreateOpts {
 	return CreateOpts{
 		Name:       ccommand.Args.Name,
-		ProjectDir: projectDir,
 		Ports:      ccommand.Ports,
 		Volumes:    ccommand.Volumes,
 		ForceBuild: ccommand.ForceBuild || ccommand.ForcePull,
 		Build: BuildOpts{
-			Image: ImageOpts{
-				Type:    ccommand.Type,
-				Version: ccommand.Version,
-				Image:   ccommand.Image,
-			},
+			Image:     ImageOpts{},
 			TimeZone:  ccommand.TimeZone,
 			ForcePull: ccommand.ForcePull,
 			Username:  sc.Username(),
@@ -48,9 +33,9 @@ func (ccommand *CreateCommand) toCreateOpts(sc SystemClient, workingDir string) 
 	}
 }
 
-var createCommand CreateCommand
+var rebuildCommand RebuildCommand
 
-func (x *CreateCommand) Execute(args []string) error {
+func (x *RebuildCommand) Execute(args []string) error {
 	dc, err := NewDockerClient(globalOptions.toConnectOpts())
 	if err != nil {
 		return err
@@ -61,19 +46,14 @@ func (x *CreateCommand) Execute(args []string) error {
 		return err
 	}
 
-	workingDir, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-
-	return CreateNewEnvironment(dc, sc, createCommand.toCreateOpts(sc, workingDir), os.Stdout)
+	return RebuildEnvironment(dc, sc, rebuildCommand.toCreateOpts(sc), os.Stdout)
 }
 
 func init() {
-	_, err := parser.AddCommand("create",
-		"Create an environment.",
+	_, err := parser.AddCommand("rebuild",
+		"Rebuild an environment.",
 		"",
-		&createCommand)
+		&rebuildCommand)
 
 	if err != nil {
 		fmt.Println(err)

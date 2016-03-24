@@ -49,13 +49,13 @@ type BaseImageTag struct {
 }
 
 type CreateOpts struct {
-	Name       string
-	ProjectDir string
-	Ports      []string
-	Volumes    []string
-	WorkingDir string
-	ForceBuild bool
-	Build      BuildOpts
+	Name          string
+	Ports         []string
+	ExistingPorts []Port
+	Volumes       []string
+	ProjectDir    string
+	ForceBuild    bool
+	Build         BuildOpts
 }
 
 type BuildOpts struct {
@@ -131,16 +131,69 @@ func DestroyEnvironment(dc DockerClient, sc SystemClient, envName string) error 
 	return nil
 }
 
-func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *os.File) error {
-	logrus.Debugf("Checking if environment already exists")
-	envs, err := Environments(dc, sc)
+func RebuildEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *os.File) error {
+	env, err := GetEnvironment(dc, sc, co.Name)
 	if err != nil {
 		return err
 	}
-	if _, ok := envs[co.Name]; ok {
-		return fmt.Errorf("Environment %s already exists", co.Name)
+
+	// fmt.Println(co)
+	// fmt.Println(env)
+
+	// TODO: check for re-specifying the same port
+	logrus.Debugf("Merge in ports")
+	ports := make([]Port, 0)
+	for _, port := range env.Container.Ports {
+		if port.ContainerPort == 22 {
+			continue
+		}
+		if port.HostPort > 30000 {
+			port.HostPort = 0
+		}
+		ports = append(ports, port)
+	}
+	co.ExistingPorts = ports
+
+	// TODO: check for re-specifying the same volume
+	logrus.Debugf("Merge in volumes")
+	dockerContainer, err := dc.InspectContainer(env.Container.Name)
+	if err != nil {
+		return err
 	}
 
+	volumes := co.Volumes
+	for _, mount := range dockerContainer.Mounts {
+		if mount.Destination == fmt.Sprintf("/home/%s", sc.Username()) {
+			continue
+		}
+
+		volumes = append(volumes, fmt.Sprintf("%s:%s", mount.Source, mount.Destination))
+	}
+	co.Volumes = volumes
+
+	logrus.Debugf("Set image opts")
+	co.Build.Image = ImageOpts{
+		Image: env.Container.Labels["org.endot.dockdev.base"],
+	}
+	// fmt.Println(co)
+
+	logrus.Debugf("Stopping environment")
+	_, err = EnsureStopped(dc, sc, env.Name)
+	if err != nil {
+		return err
+	}
+
+	if env.Container != nil {
+		err = dc.RemoveContainer(env.Container.Name)
+		if err != nil {
+			return err
+		}
+	}
+
+	return CreateEnvironment(dc, sc, co, output)
+}
+
+func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *os.File) error {
 	ports, err := ParsePorts(co.Ports)
 	if err != nil {
 		return err
@@ -148,6 +201,7 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *
 	ports = append(ports, Port{
 		"", 0, 22, "tcp",
 	})
+	ports = append(ports, co.ExistingPorts...)
 
 	logrus.Debugf("Ensuring SSH key is present")
 	key, err := sc.EnsureSSHKey()
@@ -177,9 +231,9 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *
 	logrus.Debugf("Creating container")
 	volumes := co.Volumes
 	volumes = append(volumes, fmt.Sprintf("%s:/home/%s", path, sc.Username()))
-	workdirParts := strings.Split(co.WorkingDir, string(os.PathSeparator))
-	if len(co.WorkingDir) > 0 {
-		volumes = append(volumes, fmt.Sprintf("%s:/home/%s/%s", co.WorkingDir, sc.Username(), workdirParts[len(workdirParts)-1]))
+	workdirParts := strings.Split(co.ProjectDir, string(os.PathSeparator))
+	if len(co.ProjectDir) > 0 {
+		volumes = append(volumes, fmt.Sprintf("%s:/home/%s/%s", co.ProjectDir, sc.Username(), workdirParts[len(workdirParts)-1]))
 	}
 
 	containerName := fmt.Sprintf("ddc_%s", co.Name)
@@ -202,6 +256,19 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *
 	}
 
 	return nil
+}
+
+func CreateNewEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *os.File) error {
+	logrus.Debugf("Checking if environment already exists")
+	envs, err := Environments(dc, sc)
+	if err != nil {
+		return err
+	}
+	if _, ok := envs[co.Name]; ok {
+		return fmt.Errorf("Environment %s already exists", co.Name)
+	}
+
+	return CreateEnvironment(dc, sc, co, output)
 }
 
 func EnsureRunning(dc DockerClient, sc SystemClient, envName string) (Environment, error) {
