@@ -472,6 +472,7 @@ func BaseImages(dc DockerClient) ([]*BaseImage, error) {
 			"go",
 			"Golang Image",
 			[]*BaseImageTag{
+				{"1.4", false, false},
 				{"1.5", false, false},
 				{"1.6", false, true},
 			},
