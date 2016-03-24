@@ -72,8 +72,6 @@ type ImageOpts struct {
 	Image   string
 }
 
-var dockerOrg = "dockdev"
-
 func ParsePorts(portSpecs []string) ([]Port, error) {
 	ports := make([]Port, 0)
 
@@ -498,7 +496,7 @@ func BaseImages(dc DockerClient) ([]*BaseImage, error) {
 
 	for _, bimage := range baseImages {
 		for _, btag := range bimage.Tags {
-			imageTag := fmt.Sprintf("%s/%s:%s", dockerOrg, bimage.Name, btag.Name)
+			imageTag := fmt.Sprintf("%s/%s:%s", DOCKER_HUB_ORG, bimage.Name, btag.Name)
 			if _, ok := tagToImage[imageTag]; ok {
 				btag.Pulled = true
 			}
