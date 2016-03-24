@@ -63,6 +63,7 @@ type BuildOpts struct {
 	UID, GID  int
 	Image     ImageOpts
 	ForcePull bool
+	TimeZone  string
 }
 
 type ImageOpts struct {
@@ -309,6 +310,8 @@ RUN (addgroup --gid {{ .Gid }} {{ .Username }} || /bin/true) && \
     adduser --uid {{ .Uid }} --gid {{ .Gid }} {{ .Username }} --gecos "" --disabled-password && \
     echo "{{ .Username }}   ALL=NOPASSWD: ALL" >> /etc/sudoers
 
+{{ .TzSet }}
+
 LABEL org.endot.dockdev.username={{ .Username }} \
       org.endot.dockdev.gid={{ .Gid }} \
       org.endot.dockdev.uid={{ .Uid }} \
@@ -316,12 +319,17 @@ LABEL org.endot.dockdev.username={{ .Username }} \
       org.endot.dockdev.buildtime="{{ .Time }}"
 
 `
+	// TODO: make timezone setting work on other distributions
+	var tzenv string
+	if len(bo.TimeZone) > 0 {
+		tzenv = fmt.Sprintf(`RUN echo "%s" > /etc/timezone && dpkg-reconfigure --frontend noninteractive tzdata`, bo.TimeZone)
+	}
 
 	dockerfileData := struct {
-		Username, Image, Time string
-		Uid, Gid              int
+		Username, Image, Time, TzSet string
+		Uid, Gid                     int
 	}{
-		bo.Username, image, now.Format(time.UnixDate), bo.UID, bo.GID,
+		bo.Username, image, now.Format(time.UnixDate), tzenv, bo.UID, bo.GID,
 	}
 
 	tmpl := template.Must(template.New("dockerfile").Parse(dockerfileTmpl))

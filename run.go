@@ -26,6 +26,7 @@ func (ccommand *RunCommand) toCreateOpts(sc SystemClient, workingDir string) Cre
 				Version: ccommand.Version,
 				Image:   ccommand.Image,
 			},
+			TimeZone:  ccommand.TimeZone,
 			ForcePull: ccommand.ForcePull,
 			Username:  sc.Username(),
 			UID:       sc.UID(),

@@ -14,6 +14,7 @@ type CreateCommand struct {
 	Volumes    []string `long:"volume" description:"Volume to mount (similar to docker -v)."`
 	ForceBuild bool     `long:"force-build" description:"Force building of new user image."`
 	ForcePull  bool     `long:"force-pull" description:"Force pulling base image."`
+	TimeZone   string   `long:"tz" description:"Time zone for container, specify like 'America/Los_Angeles'.  Defaults to UTC."`
 	Args       struct {
 		Name string `description:"Name of environment."`
 	} `positional-args:"yes" required:"yes"`
@@ -33,6 +34,7 @@ func (ccommand *CreateCommand) toCreateOpts(sc SystemClient, workingDir string) 
 				Version: ccommand.Version,
 				Image:   ccommand.Image,
 			},
+			TimeZone:  ccommand.TimeZone,
 			ForcePull: ccommand.ForcePull,
 			Username:  sc.Username(),
 			UID:       sc.UID(),
