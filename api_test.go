@@ -55,6 +55,10 @@ func (rdc *TestDockerClient) CreateContainer(cco CreateContainerOpts) error {
 	return nil
 }
 
+func (rdc *TestDockerClient) InspectContainer(cont string) (*docker.Container, error) {
+	return nil, nil
+}
+
 func (rdc *TestDockerClient) StartContainer(name string) error {
 	return nil
 }
@@ -135,14 +139,14 @@ func TestEnvironments(t *testing.T) {
 	dc.AddContainer(
 		docker.APIContainers{
 			ID:     "foo",
-			Names:  []string{"/ddc_foo"},
-			Image:  "ddc-nate-1234",
+			Names:  []string{"/skeg_foo"},
+			Image:  "skeg-nate-1234",
 			Status: "Up 12 hours",
 			Ports: []docker.APIPort{
 				{32768, 22, "tcp", "0.0.0.0"},
 			},
 			Labels: map[string]string{
-				"org.endot.dockdev.base": "clojure",
+				"skeg.io/image/base": "clojure",
 			},
 		},
 	)
@@ -159,12 +163,12 @@ func TestEnvironments(t *testing.T) {
 			"foo": Environment{
 				"foo",
 				&Container{
-					"ddc_foo",
-					"ddc-nate-1234",
+					"skeg_foo",
+					"skeg-nate-1234",
 					true,
 					[]Port{{"0.0.0.0", 22, 32768, "tcp"}},
 					map[string]string{
-						"org.endot.dockdev.base": "clojure",
+						"skeg.io/image/base": "clojure",
 					},
 				},
 				"clojure",
@@ -196,14 +200,14 @@ func TestBaseImages(t *testing.T) {
 	dc.AddImage(
 		docker.APIImages{
 			RepoTags: []string{
-				"dockdev/go:1.6",
+				"skegio/go:1.6",
 			},
 		},
 	)
 	dc.AddImage(
 		docker.APIImages{
 			RepoTags: []string{
-				"dockdev/python:3.4",
+				"skegio/python:3.5",
 			},
 		},
 	)
@@ -218,6 +222,7 @@ func TestBaseImages(t *testing.T) {
 				"go",
 				"Golang Image",
 				[]*BaseImageTag{
+					{"1.4", false, false},
 					{"1.5", false, false},
 					{"1.6", true, true},
 				},
@@ -226,7 +231,8 @@ func TestBaseImages(t *testing.T) {
 				"clojure",
 				"Clojure image",
 				[]*BaseImageTag{
-					{"java7", false, true},
+					{"java7", false, false},
+					{"java8", false, true},
 				},
 			},
 			{
@@ -235,7 +241,7 @@ func TestBaseImages(t *testing.T) {
 				[]*BaseImageTag{
 					{"both", false, true},
 					{"2.7", false, false},
-					{"3.4", true, false},
+					{"3.5", true, false},
 				},
 			},
 		},
