@@ -121,7 +121,7 @@ func NewSystemClient() (*RealSystemClient, error) {
 		return nil, fmt.Errorf("$HOME environment variable not found")
 	}
 
-	return NewSystemClientWithBase(filepath.Join(home, "envs"))
+	return NewSystemClientWithBase(filepath.Join(home, ENVS_DIR))
 }
 
 func NewSystemClientWithBase(baseDir string) (*RealSystemClient, error) {

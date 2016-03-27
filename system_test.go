@@ -33,7 +33,7 @@ func TestDir(t *testing.T) {
 	assert := assert.New(t)
 
 	tempdir, _ := ioutil.TempDir("", "ddc")
-	base := filepath.Join(tempdir, "envs")
+	base := filepath.Join(tempdir, "skegs")
 	defer os.RemoveAll(tempdir)
 
 	sc, _ := NewSystemClientWithBase(base)
