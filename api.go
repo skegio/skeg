@@ -262,7 +262,7 @@ func CreateNewEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, outpu
 	if err != nil {
 		return err
 	}
-	if _, ok := envs[co.Name]; ok {
+	if env, ok := envs[co.Name]; env.Container != nil && ok {
 		return fmt.Errorf("Environment %s already exists", co.Name)
 	}
 
