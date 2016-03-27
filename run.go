@@ -58,7 +58,7 @@ func (x *RunCommand) Execute(args []string) error {
 		return err
 	}
 
-	err = CreateEnvironment(dc, sc, runCommand.toCreateOpts(sc, workingDir), os.Stdout)
+	err = CreateNewEnvironment(dc, sc, runCommand.toCreateOpts(sc, workingDir), os.Stdout)
 	if err != nil {
 		return err
 	}
