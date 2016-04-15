@@ -532,6 +532,17 @@ func ConnectEnvironment(dc DockerClient, sc SystemClient, name string, extra []s
 		return errors.New("No container found")
 	}
 
+	var sshPort Port
+	for _, port := range env.Container.Ports {
+		if port.ContainerPort == 22 {
+			sshPort = port
+		}
+	}
+
+	if sshPort.HostPort == 0 {
+		return errors.New("Running container doesn't have ssh running")
+	}
+
 	var host string
 	if env_endpoint := os.Getenv("DOCKER_HOST"); len(env_endpoint) > 0 {
 		re, err := regexp.Compile(`(tcp://)?([^:]+)(:\d+)?`)
@@ -542,18 +553,11 @@ func ConnectEnvironment(dc DockerClient, sc SystemClient, name string, extra []s
 		res := re.FindAllStringSubmatch(env_endpoint, -1)
 		host = res[0][2]
 	} else {
-		host = "localhost"
-	}
-
-	var sshPort string
-	for _, port := range env.Container.Ports {
-		if port.ContainerPort == 22 {
-			sshPort = fmt.Sprintf("%d", port.HostPort)
+		if sshPort.HostIp != "0.0.0.0" {
+			host = sshPort.HostIp
+		} else {
+			host = "localhost"
 		}
-	}
-
-	if len(sshPort) == 0 {
-		return errors.New("Running container doesn't have ssh running")
 	}
 
 	key, err := sc.EnsureSSHKey()
@@ -564,7 +568,7 @@ func ConnectEnvironment(dc DockerClient, sc SystemClient, name string, extra []s
 	opts := []string{
 		host,
 		"-l", sc.Username(),
-		"-p", sshPort,
+		"-p", fmt.Sprintf("%d", sshPort.HostPort),
 		"-i", key.privatePath,
 		"-o", "UserKnownHostsFile /dev/null",
 		"-o", "StrictHostKeyChecking no",
