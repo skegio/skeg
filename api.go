@@ -234,7 +234,7 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *
 		volumes = append(volumes, fmt.Sprintf("%s:/home/%s/%s", co.ProjectDir, sc.Username(), workdirParts[len(workdirParts)-1]))
 	}
 
-	containerName := fmt.Sprintf("%s_%s", CONT_PREFIX, co.Name)
+	containerName := fmt.Sprintf("%s_%s_%s", CONT_PREFIX, sc.Username(), co.Name)
 	ccont := CreateContainerOpts{
 		Name:     containerName,
 		Image:    imageName,
@@ -619,7 +619,13 @@ func Environments(dc DockerClient, sc SystemClient) (map[string]Environment, err
 	}
 
 	for _, file := range files {
-		contName := fmt.Sprintf("%s_%s", CONT_PREFIX, file)
+		contName := fmt.Sprintf("%s_%s_%s", CONT_PREFIX, sc.Username(), file)
+		oldContName := fmt.Sprintf("%s_%s", CONT_PREFIX, file)
+
+		if _, ok := containersByName[oldContName]; ok {
+			logrus.Warnf("Found container '%s' that may be yours, run `docker rename %s %s` to re-associate", oldContName, oldContName, contName)
+		}
+
 		newEnv := Environment{
 			Name:      file,
 			Container: containersByName[contName],
