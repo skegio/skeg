@@ -173,6 +173,13 @@ func RebuildEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output 
 	co.Build.Image = ImageOpts{
 		Image: env.Container.Labels["skeg.io/image/base"],
 	}
+
+	if len(co.Build.TimeZone) == 0 {
+		if tz, ok := env.Container.Labels["skeg.io/image/timezone"]; ok {
+			co.Build.TimeZone = tz
+		}
+	}
+
 	// fmt.Println(co)
 
 	logrus.Debugf("Stopping environment")
@@ -381,7 +388,8 @@ LABEL skeg.io/image/username={{ .Username }} \
       skeg.io/image/gid={{ .Gid }} \
       skeg.io/image/uid={{ .Uid }} \
       skeg.io/image/base={{ .Image }} \
-      skeg.io/image/buildtime="{{ .Time }}"
+      skeg.io/image/buildtime="{{ .Time }}" \
+      skeg.io/image/timezone="{{ .Tz }}"
 
 `
 	// TODO: make timezone setting work on other distributions
@@ -391,10 +399,10 @@ LABEL skeg.io/image/username={{ .Username }} \
 	}
 
 	dockerfileData := struct {
-		Username, Image, Time, TzSet string
-		Uid, Gid                     int
+		Username, Image, Time, TzSet, Tz string
+		Uid, Gid                         int
 	}{
-		bo.Username, image, now.Format(time.UnixDate), tzenv, bo.UID, bo.GID,
+		bo.Username, image, now.Format(time.UnixDate), tzenv, bo.TimeZone, bo.UID, bo.GID,
 	}
 
 	tmpl := template.Must(template.New("dockerfile").Parse(dockerfileTmpl))
