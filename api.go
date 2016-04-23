@@ -217,6 +217,15 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *
 	var imageName string
 	userImages, err := UserImages(dc, sc, co.Build.Image)
 	if co.ForceBuild || len(userImages) == 0 {
+
+		// TODO: consider whether this is the best default (new image inherits
+		// previous image's time zone)
+		if len(co.Build.TimeZone) == 0 && len(userImages) > 0 {
+			if tz, ok := userImages[0].Labels["skeg.io/image/timezone"]; ok {
+				co.Build.TimeZone = tz
+			}
+		}
+
 		logrus.Debugf("Building customized docker image")
 		imageName, err = BuildImage(dc, co.Build, output)
 		if err != nil {
