@@ -242,12 +242,28 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *
 		return err
 	}
 
+	homeDir := fmt.Sprintf("/home/%s", sc.Username())
 	logrus.Debugf("Creating container")
 	volumes := co.Volumes
-	volumes = append(volumes, fmt.Sprintf("%s:/home/%s", path, sc.Username()))
+	volumes = append(volumes, fmt.Sprintf("%s:%s", path, homeDir))
 	workdirParts := strings.Split(co.ProjectDir, string(os.PathSeparator))
 	if len(co.ProjectDir) > 0 {
-		volumes = append(volumes, fmt.Sprintf("%s:/home/%s/%s", co.ProjectDir, sc.Username(), workdirParts[len(workdirParts)-1]))
+		volumes = append(volumes, fmt.Sprintf("%s:%s/%s", co.ProjectDir, homeDir, workdirParts[len(workdirParts)-1]))
+	}
+
+	for _, v := range volumes {
+		logrus.Debugf("Checking volume %s for local paths", v)
+		if strings.Contains(v, ":") {
+			volumeParts := strings.Split(v, ":")
+			if strings.HasPrefix(volumeParts[1], homeDir) {
+				localPath := strings.Replace(volumeParts[1], homeDir, path, 1)
+				logrus.Debugf("Making local path '%s'", localPath)
+				err := os.MkdirAll(localPath, 0755)
+				if err != nil {
+					return err
+				}
+			}
+		}
 	}
 
 	containerName := fmt.Sprintf("%s_%s_%s", CONT_PREFIX, sc.Username(), co.Name)
