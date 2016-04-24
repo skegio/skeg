@@ -3,6 +3,8 @@
 ## unreleased (TBD)
 
 * When creating new environments or rebuilding existing ones, use the previous timezone, if set.
+* Add `vendor/` code, needs Go 1.5/1.6 to build now
+* Fix environment destruction when adding volume in environment homedir
 
 ## v0.1.4 (2016-04-22)
 
