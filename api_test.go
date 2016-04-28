@@ -146,7 +146,7 @@ func TestEnvironments(t *testing.T) {
 	dc.AddContainer(
 		docker.APIContainers{
 			ID:     "foo",
-			Names:  []string{"/skeg_foo"},
+			Names:  []string{"/skeg_nate_foo"},
 			Image:  "skeg-nate-1234",
 			Status: "Up 12 hours",
 			Ports: []docker.APIPort{
@@ -170,7 +170,7 @@ func TestEnvironments(t *testing.T) {
 			"foo": Environment{
 				"foo",
 				&Container{
-					"skeg_foo",
+					"skeg_nate_foo",
 					"skeg-nate-1234",
 					true,
 					[]Port{{"0.0.0.0", 22, 32768, "tcp"}},
