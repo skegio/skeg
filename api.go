@@ -25,9 +25,9 @@ type Environment struct {
 }
 
 type UserImage struct {
-	Name    string
-	Aliases []string
-	Labels  map[string]string
+	Name     string
+	EnvCount int
+	Labels   map[string]string
 }
 
 type BaseImage struct {
@@ -465,13 +465,33 @@ func UserImages(dc DockerClient, sc SystemClient, io ImageOpts) ([]UserImage, er
 		return images, err
 	}
 
+	dockerContainers, err := dc.ListContainersWithLabels(labels)
+	if err != nil {
+		return images, err
+	}
+
+	uses := make(map[string]int)
+	for _, dockerContainer := range dockerContainers {
+		image = dockerContainer.Image
+		_, tag := dc.ParseRepositoryTag(image)
+		if len(tag) == 0 {
+			image = fmt.Sprintf("%s:latest", image)
+		}
+
+		if _, ok := uses[image]; !ok {
+			uses[image] = 1
+		} else {
+			uses[image] = uses[image] + 1
+		}
+	}
+
 	for _, dockerImage := range dockerImages {
 		tags := dockerImage.RepoTags
-		sort.Strings(tags)
 
+		imageUses, _ := uses[tags[0]]
 		images = append(images, UserImage{
 			tags[0],
-			tags[1:],
+			imageUses,
 			dockerImage.Labels,
 		})
 	}

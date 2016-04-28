@@ -48,6 +48,7 @@ type CreateContainerOpts struct {
 
 type DockerClient interface {
 	ListContainers() ([]docker.APIContainers, error)
+	ListContainersWithLabels(labels []string) ([]docker.APIContainers, error)
 	InspectContainer(cont string) (*docker.Container, error)
 	ListImages() ([]docker.APIImages, error)
 	ListImagesWithLabels(labels []string) ([]docker.APIImages, error)
@@ -149,6 +150,22 @@ func (rdc *RealDockerClient) ListContainers() ([]docker.APIContainers, error) {
 	var containers []docker.APIContainers
 
 	containers, err := rdc.dcl.ListContainers(docker.ListContainersOptions{All: true})
+	if err != nil {
+		return containers, err
+	}
+
+	return containers, nil
+}
+
+func (rdc *RealDockerClient) ListContainersWithLabels(labels []string) ([]docker.APIContainers, error) {
+	var containers []docker.APIContainers
+
+	containers, err := rdc.dcl.ListContainers(docker.ListContainersOptions{
+		All: true,
+		Filters: map[string][]string{
+			"label": labels,
+		},
+	})
 	if err != nil {
 		return containers, err
 	}

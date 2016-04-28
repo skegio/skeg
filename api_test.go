@@ -25,6 +25,13 @@ func (rdc *TestDockerClient) ListContainers() ([]docker.APIContainers, error) {
 	return rdc.containers, nil
 }
 
+func (rdc *TestDockerClient) ListContainersWithLabels(labels []string) ([]docker.APIContainers, error) {
+	if err, ok := rdc.failures["ListContainersWithLabels"]; ok {
+		return []docker.APIContainers{}, err
+	}
+	return rdc.containers, nil
+}
+
 func (rdc *TestDockerClient) ListImages() ([]docker.APIImages, error) {
 	if err, ok := rdc.failures["ListImages"]; ok {
 		return []docker.APIImages{}, err

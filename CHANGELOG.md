@@ -2,6 +2,7 @@
 
 ## unreleased (TBD)
 
+* Show environment count in image list, to aid in cleanup
 * When creating new environments or rebuilding existing ones, use the previous timezone, if set.
 * Add `vendor/` code, needs Go 1.5/1.6 to build now
 * Fix environment destruction when adding volume in environment homedir
