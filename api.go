@@ -220,9 +220,14 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *
 
 		// TODO: consider whether this is the best default (new image inherits
 		// previous image's time zone)
-		if len(co.Build.TimeZone) == 0 && len(userImages) > 0 {
-			if tz, ok := userImages[0].Labels["skeg.io/image/timezone"]; ok {
-				co.Build.TimeZone = tz
+		if len(co.Build.TimeZone) == 0 {
+			if len(userImages) > 0 {
+				if tz, ok := userImages[0].Labels["skeg.io/image/timezone"]; ok {
+					co.Build.TimeZone = tz
+				}
+			} else {
+				fmt.Println("Detecitng time zone")
+				co.Build.TimeZone = sc.DetectTimeZone()
 			}
 		}
 

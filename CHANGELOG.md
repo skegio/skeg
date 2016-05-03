@@ -2,6 +2,7 @@
 
 ## unreleased (TBD)
 
+* Detect timezone, if possible
 * Add timezone to image list
 * Show environment count in image list, to aid in cleanup
 * When creating new environments or rebuilding existing ones, use the previous timezone, if set.

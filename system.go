@@ -7,10 +7,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 )
 
 type SystemClient interface {
 	EnvironmentDirs() ([]string, error)
+	DetectTimeZone() string
 	EnsureEnvironmentDir(envName string, keys SSHKey) (string, error)
 	RemoveEnvironmentDir(envName string) error
 	EnsureSSHKey() (SSHKey, error)
@@ -30,6 +32,22 @@ type RealSystemClient struct {
 type SSHKey struct {
 	privatePath string
 	publicPath  string
+}
+
+func (rsc *RealSystemClient) DetectTimeZone() string {
+	realLocaltime, _ := filepath.EvalSymlinks("/etc/localtime")
+	if _, err := os.Stat("/etc/timezone"); err == nil {
+		contents, err := ioutil.ReadFile("/etc/timezone")
+		if err != nil {
+			return ""
+		}
+		return strings.TrimSpace(string(contents))
+	}
+	if strings.HasPrefix(realLocaltime, "/usr/share/zoneinfo/") {
+		return strings.TrimPrefix(realLocaltime, "/usr/share/zoneinfo/")
+	}
+
+	return ""
 }
 
 func (rsc *RealSystemClient) EnvironmentDirs() ([]string, error) {
