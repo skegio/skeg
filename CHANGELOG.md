@@ -2,6 +2,8 @@
 
 ## unreleased (TBD)
 
+## v0.2 (2016-05-02)
+
 * Detect timezone, if possible
 * Add timezone to image list
 * Show environment count in image list, to aid in cleanup
