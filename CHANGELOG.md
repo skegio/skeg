@@ -4,6 +4,8 @@
 
 ## v0.2 (2016-05-02)
 
+[Downloads](https://github.com/skegio/skeg/releases/tag/v0.2)
+
 * Detect timezone, if possible
 * Add timezone to image list
 * Show environment count in image list, to aid in cleanup
