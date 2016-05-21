@@ -96,6 +96,10 @@ type MockSystemClient struct {
 	mock.Mock
 }
 
+func (rsc *MockSystemClient) DetectTimeZone() string {
+	return "America/Los_Angeles"
+}
+
 func (msc *MockSystemClient) EnvironmentDirs() ([]string, error) {
 	args := msc.Called()
 	return args.Get(0).([]string), args.Error(1)
