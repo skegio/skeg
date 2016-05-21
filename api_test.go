@@ -287,6 +287,30 @@ func TestEnsureImage(t *testing.T) {
 	assert.Equal(err, liError)
 }
 
+func TestParsePorts(t *testing.T) {
+	assert := assert.New(t)
+
+	var portTests = []struct {
+		input  []string
+		output []Port
+		err    error
+	}{
+		{[]string{}, []Port{}, nil},
+		{[]string{"80"}, []Port{{"", 0, 80, "tcp"}}, nil},
+		{[]string{"1194/udp"}, []Port{{"", 0, 1194, "udp"}}, nil},
+		{[]string{"80:80"}, []Port{{"", 80, 80, "tcp"}}, nil},
+		{[]string{"2222:22"}, []Port{}, errors.New("bad container port, 22 reserved for ssh")},
+		{[]string{"7000-7005:7000"}, []Port{}, errors.New("dynamic port ranges not supported (yet)")},
+		{[]string{"fred"}, []Port{}, errors.New("Invalid containerPort: fred")},
+	}
+
+	for _, test := range portTests {
+		result, err := ParsePorts(test.input)
+		assert.Equal(test.output, result)
+		assert.Equal(test.err, err)
+	}
+}
+
 // TODO: re-enable when TestDockerClient is a little smarter
 // func TestCreateEnvironment(t *testing.T) {
 // 	assert := assert.New(t)
