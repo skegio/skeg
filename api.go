@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"regexp"
 	"sort"
 	"strconv"
@@ -603,10 +602,7 @@ func ConnectEnvironment(dc DockerClient, sc SystemClient, name string, extra []s
 
 	var host string
 	if env_endpoint := os.Getenv("DOCKER_HOST"); len(env_endpoint) > 0 {
-		re, err := regexp.Compile(`(tcp://)?([^:]+)(:\d+)?`)
-		if err != nil {
-			return err
-		}
+		re, _ := regexp.Compile(`(tcp://)?([^:]+)(:\d+)?`)
 
 		res := re.FindAllStringSubmatch(env_endpoint, -1)
 		host = res[0][2]
@@ -632,14 +628,9 @@ func ConnectEnvironment(dc DockerClient, sc SystemClient, name string, extra []s
 		"-o", "StrictHostKeyChecking no",
 	}
 
-	cmd := exec.Command(
-		"ssh", append(opts, extra...)...,
+	return sc.RunSSH(
+		"ssh", append(opts, extra...),
 	)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	return cmd.Run()
 }
 
 func Environments(dc DockerClient, sc SystemClient) (map[string]Environment, error) {

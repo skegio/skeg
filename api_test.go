@@ -141,7 +141,7 @@ func (rdc *TestDockerClient) AddImage(image docker.APIImages) error {
 
 type TestSystemClient struct {
 	environments []string
-	commands     []string
+	sshArgs      [][]string
 	fails        *Failures
 }
 
@@ -184,7 +184,8 @@ func (tsc *TestSystemClient) EnsureSSHKey() (SSHKey, error) {
 	return SSHKey{}, nil
 }
 
-func (tsc *TestSystemClient) RunCommand(command string, args []string) error {
+func (tsc *TestSystemClient) RunSSH(command string, args []string) error {
+	tsc.sshArgs = append(tsc.sshArgs, args)
 	return nil
 }
 
@@ -431,7 +432,7 @@ func TestEnsureRunning(t *testing.T) {
 			Image:  "skeg-nate-1234",
 			Status: "Exited (0) 1 hour ago",
 			Ports: []docker.APIPort{
-				{32768, 22, "tcp", "0.0.0.0"},
+				{22, 32768, "tcp", "0.0.0.0"},
 			},
 			Labels: map[string]string{
 				"skeg.io/image/base": "clojure",
@@ -460,6 +461,92 @@ func TestEnsureRunning(t *testing.T) {
 	dc.fails.ClearFailures()
 	env, err = EnsureRunning(dc, sc, "foo")
 	assert.True(env.Container.Running)
+	assert.Nil(err)
+}
+
+func TestConnectEnvironment(t *testing.T) {
+	assert := assert.New(t)
+
+	sc := NewTestSystemClient()
+	key, _ := sc.EnsureSSHKey()
+
+	dc := NewTestDockerClient()
+	dc.AddContainer(
+		docker.APIContainers{
+			ID:     "foo",
+			Names:  []string{"/skeg_nate_foo"},
+			Image:  "skeg-nate-1234",
+			Status: "Exited (0) 1 hour ago",
+			Ports: []docker.APIPort{
+				{22, 32768, "tcp", "0.0.0.0"},
+			},
+			Labels: map[string]string{
+				"skeg.io/image/base": "clojure",
+			},
+		},
+	)
+	sc.EnsureEnvironmentDir("foo", key)
+	dc.AddContainer(
+		docker.APIContainers{
+			ID:     "qux",
+			Names:  []string{"/skeg_nate_qux"},
+			Image:  "skeg-nate-1234",
+			Status: "Exited (0) 1 hour ago",
+			Ports:  []docker.APIPort{},
+			Labels: map[string]string{
+				"skeg.io/image/base": "clojure",
+			},
+		},
+	)
+	sc.EnsureEnvironmentDir("buz", key)
+	dc.AddContainer(
+		docker.APIContainers{
+			ID:     "buz",
+			Names:  []string{"/skeg_nate_buz"},
+			Image:  "skeg-nate-1234",
+			Status: "Exited (0) 1 hour ago",
+			Ports: []docker.APIPort{
+				{22, 32768, "tcp", "192.168.0.100"},
+			},
+			Labels: map[string]string{
+				"skeg.io/image/base": "clojure",
+			},
+		},
+	)
+	sc.EnsureEnvironmentDir("qux", key)
+	sc.EnsureEnvironmentDir("oof", key)
+
+	var env Environment
+	var err error
+
+	err = ConnectEnvironment(dc, sc, "foo", []string{})
+	assert.Nil(err)
+	env, err = GetEnvironment(dc, sc, "foo")
+	assert.Nil(err)
+	assert.True(env.Container.Running)
+	assert.Equal([]string{"localhost", "-l", "nate", "-p", "32768", "-i", "", "-o", "UserKnownHostsFile /dev/null", "-o", "StrictHostKeyChecking no"}, sc.sshArgs[len(sc.sshArgs)-1])
+
+	err = ConnectEnvironment(dc, sc, "bar", []string{})
+	assert.Equal(err, errors.New("Environment bar doesn't exist."))
+
+	err = ConnectEnvironment(dc, sc, "oof", []string{})
+	assert.Equal(err, errors.New("No container found"))
+
+	err = ConnectEnvironment(dc, sc, "qux", []string{})
+	assert.Equal(err, errors.New("Running container doesn't have ssh running"))
+
+	err = ConnectEnvironment(dc, sc, "buz", []string{})
+	assert.Equal("192.168.0.100", sc.sshArgs[len(sc.sshArgs)-1][0])
+	assert.Nil(err)
+
+	os.Setenv("DOCKER_HOST", "tcp://192.168.0.101:2376")
+	err = ConnectEnvironment(dc, sc, "buz", []string{})
+	assert.Equal("192.168.0.101", sc.sshArgs[len(sc.sshArgs)-1][0])
+	assert.Nil(err)
+
+	err = ConnectEnvironment(dc, sc, "buz", []string{"-A"})
+	args := sc.sshArgs[len(sc.sshArgs)-1]
+	assert.Equal("-A", args[len(args)-1])
 	assert.Nil(err)
 }
 

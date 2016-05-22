@@ -19,6 +19,7 @@ type SystemClient interface {
 	Username() string
 	UID() int
 	GID() int
+	RunSSH(command string, args []string) error
 }
 
 type RealSystemClient struct {
@@ -130,6 +131,16 @@ func (rsc *RealSystemClient) EnsureSSHKey() (SSHKey, error) {
 	}
 
 	return SSHKey{privPath, pubPath}, nil
+}
+
+func (rsc *RealSystemClient) RunSSH(command string, args []string) error {
+
+	cmd := exec.Command(command, args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return cmd.Run()
 }
 
 func NewSystemClient() (*RealSystemClient, error) {
