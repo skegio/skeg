@@ -10,38 +10,64 @@ import (
 
 	"github.com/fsouza/go-dockerclient"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
+
+type Failures struct {
+	failures map[string]error
+}
+
+func (fails *Failures) AddFailure(name string, message error) error {
+	fails.failures[name] = message
+
+	return message
+}
+
+func (fails *Failures) SetFailure(name string, message error) error {
+	fails.ClearFailures()
+	return fails.AddFailure(name, message)
+}
+
+func (fails *Failures) ClearFailures() {
+	for k := range fails.failures {
+		delete(fails.failures, k)
+	}
+}
+
+func NewFailures() *Failures {
+	return &Failures{
+		failures: make(map[string]error),
+	}
+}
 
 type TestDockerClient struct {
 	containers []docker.APIContainers
 	images     []docker.APIImages
-	failures   map[string]error
+	fails      *Failures
 }
 
 func (rdc *TestDockerClient) ListContainers() ([]docker.APIContainers, error) {
-	if err, ok := rdc.failures["ListContainers"]; ok {
+	if err, ok := rdc.fails.failures["ListContainers"]; ok {
 		return []docker.APIContainers{}, err
 	}
 	return rdc.containers, nil
 }
 
 func (rdc *TestDockerClient) ListContainersWithLabels(labels []string) ([]docker.APIContainers, error) {
-	if err, ok := rdc.failures["ListContainersWithLabels"]; ok {
+	if err, ok := rdc.fails.failures["ListContainersWithLabels"]; ok {
 		return []docker.APIContainers{}, err
 	}
 	return rdc.containers, nil
 }
 
 func (rdc *TestDockerClient) ListImages() ([]docker.APIImages, error) {
-	if err, ok := rdc.failures["ListImages"]; ok {
+	if err, ok := rdc.fails.failures["ListImages"]; ok {
 		return []docker.APIImages{}, err
 	}
 	return rdc.images, nil
 }
 
 func (rdc *TestDockerClient) ListImagesWithLabels(labels []string) ([]docker.APIImages, error) {
-	if err, ok := rdc.failures["ListImages"]; ok {
+	if err, ok := rdc.fails.failures["ListImages"]; ok {
 		return []docker.APIImages{}, err
 	}
 	return rdc.images, nil
@@ -68,7 +94,7 @@ func (rdc *TestDockerClient) InspectContainer(cont string) (*docker.Container, e
 }
 
 func (rdc *TestDockerClient) StartContainer(name string) error {
-	if err, ok := rdc.failures["StartContainer"]; ok {
+	if err, ok := rdc.fails.failures["StartContainer"]; ok {
 		return err
 	}
 	var newContainers []docker.APIContainers
@@ -88,7 +114,7 @@ func (rdc *TestDockerClient) RemoveContainer(name string) error {
 }
 
 func (rdc *TestDockerClient) StopContainer(name string) error {
-	if err, ok := rdc.failures["StopContainer"]; ok {
+	if err, ok := rdc.fails.failures["StopContainer"]; ok {
 		return err
 	}
 	var newContainers []docker.APIContainers
@@ -113,76 +139,73 @@ func (rdc *TestDockerClient) AddImage(image docker.APIImages) error {
 	return nil
 }
 
-func (rdc *TestDockerClient) AddFailure(name string, message error) {
-	rdc.failures[name] = message
+type TestSystemClient struct {
+	environments []string
+	commands     []string
+	fails        *Failures
 }
 
-func (rdc *TestDockerClient) SetFailure(name string, message error) {
-	rdc.ClearFailures()
-	rdc.failures[name] = message
-}
-
-func (rdc *TestDockerClient) ClearFailures() {
-	for k := range rdc.failures {
-		delete(rdc.failures, k)
-	}
-}
-
-type MockSystemClient struct {
-	mock.Mock
-}
-
-func (rsc *MockSystemClient) DetectTimeZone() string {
+func (rsc *TestSystemClient) DetectTimeZone() string {
 	return "America/Los_Angeles"
 }
 
-func (msc *MockSystemClient) EnvironmentDirs() ([]string, error) {
-	args := msc.Called()
-	return args.Get(0).([]string), args.Error(1)
+func (tsc *TestSystemClient) EnvironmentDirs() ([]string, error) {
+	if err, ok := tsc.fails.failures["EnvironmentDirs"]; ok {
+		return []string{}, err
+	}
+	return tsc.environments, nil
 }
 
-func (msc *MockSystemClient) Username() string {
-	return "test"
+func (tsc *TestSystemClient) Username() string {
+	return "nate"
 }
 
-func (msc *MockSystemClient) UID() int {
+func (tsc *TestSystemClient) UID() int {
 	return 1000
 }
 
-func (msc *MockSystemClient) GID() int {
+func (tsc *TestSystemClient) GID() int {
 	return 1000
 }
 
-func (msc *MockSystemClient) EnsureEnvironmentDir(envName string, keys SSHKey) (string, error) {
-	return "", nil
+func (tsc *TestSystemClient) EnsureEnvironmentDir(envName string, keys SSHKey) (string, error) {
+	if err, ok := tsc.fails.failures["EnsureEnvironmentDir"]; ok {
+		return envName, err
+	}
+	tsc.environments = append(tsc.environments, envName)
+	return envName, nil
 }
 
-func (msc *MockSystemClient) RemoveEnvironmentDir(envName string) error {
+func (tsc *TestSystemClient) RemoveEnvironmentDir(envName string) error {
 	return nil
 }
 
-func (msc *MockSystemClient) EnsureSSHKey() (SSHKey, error) {
+func (tsc *TestSystemClient) EnsureSSHKey() (SSHKey, error) {
 	return SSHKey{}, nil
 }
 
-func NewTestDockerClient() (*TestDockerClient, error) {
+func (tsc *TestSystemClient) RunCommand(command string, args []string) error {
+	return nil
+}
 
-	dockerClient := TestDockerClient{
-		failures: make(map[string]error),
+func NewTestDockerClient() *TestDockerClient {
+	return &TestDockerClient{
+		fails: NewFailures(),
 	}
+}
 
-	return &dockerClient, nil
+func NewTestSystemClient() *TestSystemClient {
+	return &TestSystemClient{
+		fails: NewFailures(),
+	}
 }
 
 func TestEnvironments(t *testing.T) {
 	assert := assert.New(t)
 
-	tempdir, _ := ioutil.TempDir("", "ddc")
-	defer os.RemoveAll(tempdir)
+	sc := NewTestSystemClient()
 
-	sc, _ := NewSystemClientWithBase(tempdir)
-
-	dc, _ := NewTestDockerClient()
+	dc := NewTestDockerClient()
 	dc.AddContainer(
 		docker.APIContainers{
 			ID:     "foo",
@@ -224,17 +247,14 @@ func TestEnvironments(t *testing.T) {
 		envs,
 	)
 
-	msc := new(MockSystemClient)
 	dirError := errors.New("Dir listing error")
-	msc.On("EnvironmentDirs").Return([]string{}, dirError)
-
-	envs, err = Environments(dc, msc)
+	sc.fails.SetFailure("EnvironmentDirs", dirError)
+	envs, err = Environments(dc, sc)
 	assert.NotNil(err)
 	assert.Equal(err, dirError)
 
 	clError := errors.New("Container list error")
-	dc.AddFailure("ListContainers", clError)
-
+	dc.fails.AddFailure("ListContainers", clError)
 	envs, err = Environments(dc, sc)
 	assert.NotNil(err)
 	assert.Equal(err, clError)
@@ -243,7 +263,7 @@ func TestEnvironments(t *testing.T) {
 func TestBaseImages(t *testing.T) {
 	assert := assert.New(t)
 
-	dc, _ := NewTestDockerClient()
+	dc := NewTestDockerClient()
 	dc.AddImage(
 		docker.APIImages{
 			RepoTags: []string{
@@ -300,7 +320,7 @@ func TestEnsureImage(t *testing.T) {
 
 	imageName := "dockdev/python:3.4"
 
-	dc, _ := NewTestDockerClient()
+	dc := NewTestDockerClient()
 	dc.AddImage(
 		docker.APIImages{
 			RepoTags: []string{
@@ -316,7 +336,7 @@ func TestEnsureImage(t *testing.T) {
 	assert.Nil(err)
 
 	liError := errors.New("Listing error")
-	dc.AddFailure("ListImages", liError)
+	dc.fails.AddFailure("ListImages", liError)
 
 	err = EnsureImage(dc, imageName, false, nil)
 	assert.NotNil(err)
@@ -355,7 +375,7 @@ func TestEnsureStopped(t *testing.T) {
 
 	sc, _ := NewSystemClientWithBase(tempdir)
 
-	dc, _ := NewTestDockerClient()
+	dc := NewTestDockerClient()
 	dc.AddContainer(
 		docker.APIContainers{
 			ID:     "foo",
@@ -380,16 +400,16 @@ func TestEnsureStopped(t *testing.T) {
 	assert.Equal(err, errors.New("Environment bar doesn't exist."))
 
 	liError := errors.New("Listing error")
-	dc.SetFailure("ListContainers", liError)
+	dc.fails.SetFailure("ListContainers", liError)
 	_, err = EnsureStopped(dc, sc, "foo")
 	assert.Equal(err, liError)
 
 	stopError := errors.New("Stop error")
-	dc.SetFailure("StopContainer", stopError)
+	dc.fails.SetFailure("StopContainer", stopError)
 	_, err = EnsureStopped(dc, sc, "foo")
 	assert.Equal(err, stopError)
 
-	dc.ClearFailures()
+	dc.fails.ClearFailures()
 	env, err = EnsureStopped(dc, sc, "foo")
 	assert.False(env.Container.Running)
 	assert.Nil(err)
@@ -403,7 +423,7 @@ func TestEnsureRunning(t *testing.T) {
 
 	sc, _ := NewSystemClientWithBase(tempdir)
 
-	dc, _ := NewTestDockerClient()
+	dc := NewTestDockerClient()
 	dc.AddContainer(
 		docker.APIContainers{
 			ID:     "foo",
@@ -428,16 +448,16 @@ func TestEnsureRunning(t *testing.T) {
 	assert.Equal(err, errors.New("Environment bar doesn't exist."))
 
 	liError := errors.New("Listing error")
-	dc.SetFailure("ListContainers", liError)
+	dc.fails.SetFailure("ListContainers", liError)
 	_, err = EnsureRunning(dc, sc, "foo")
 	assert.Equal(err, liError)
 
 	startError := errors.New("Start error")
-	dc.SetFailure("StartContainer", startError)
+	dc.fails.SetFailure("StartContainer", startError)
 	_, err = EnsureRunning(dc, sc, "foo")
 	assert.Equal(err, startError)
 
-	dc.ClearFailures()
+	dc.fails.ClearFailures()
 	env, err = EnsureRunning(dc, sc, "foo")
 	assert.True(env.Container.Running)
 	assert.Nil(err)
