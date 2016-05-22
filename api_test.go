@@ -68,6 +68,18 @@ func (rdc *TestDockerClient) InspectContainer(cont string) (*docker.Container, e
 }
 
 func (rdc *TestDockerClient) StartContainer(name string) error {
+	if err, ok := rdc.failures["StartContainer"]; ok {
+		return err
+	}
+	var newContainers []docker.APIContainers
+	for _, cont := range rdc.containers {
+		if cont.Names[0] == fmt.Sprintf("/%s", name) {
+			cont.Status = "Up 12 hours"
+		}
+		newContainers = append(newContainers, cont)
+	}
+	rdc.containers = newContainers
+
 	return nil
 }
 
@@ -365,25 +377,69 @@ func TestEnsureStopped(t *testing.T) {
 	var err error
 
 	_, err = EnsureStopped(dc, sc, "bar")
-
 	assert.Equal(err, errors.New("Environment bar doesn't exist."))
 
 	liError := errors.New("Listing error")
 	dc.SetFailure("ListContainers", liError)
-
 	_, err = EnsureStopped(dc, sc, "foo")
 	assert.Equal(err, liError)
 
 	stopError := errors.New("Stop error")
 	dc.SetFailure("StopContainer", stopError)
-
 	_, err = EnsureStopped(dc, sc, "foo")
 	assert.Equal(err, stopError)
 
 	dc.ClearFailures()
 	env, err = EnsureStopped(dc, sc, "foo")
-
 	assert.False(env.Container.Running)
+	assert.Nil(err)
+}
+
+func TestEnsureRunning(t *testing.T) {
+	assert := assert.New(t)
+
+	tempdir, _ := ioutil.TempDir("", "ddc")
+	defer os.RemoveAll(tempdir)
+
+	sc, _ := NewSystemClientWithBase(tempdir)
+
+	dc, _ := NewTestDockerClient()
+	dc.AddContainer(
+		docker.APIContainers{
+			ID:     "foo",
+			Names:  []string{"/skeg_nate_foo"},
+			Image:  "skeg-nate-1234",
+			Status: "Exited (0) 1 hour ago",
+			Ports: []docker.APIPort{
+				{32768, 22, "tcp", "0.0.0.0"},
+			},
+			Labels: map[string]string{
+				"skeg.io/image/base": "clojure",
+			},
+		},
+	)
+	key, _ := sc.EnsureSSHKey()
+	sc.EnsureEnvironmentDir("foo", key)
+
+	var env Environment
+	var err error
+
+	_, err = EnsureRunning(dc, sc, "bar")
+	assert.Equal(err, errors.New("Environment bar doesn't exist."))
+
+	liError := errors.New("Listing error")
+	dc.SetFailure("ListContainers", liError)
+	_, err = EnsureRunning(dc, sc, "foo")
+	assert.Equal(err, liError)
+
+	startError := errors.New("Start error")
+	dc.SetFailure("StartContainer", startError)
+	_, err = EnsureRunning(dc, sc, "foo")
+	assert.Equal(err, startError)
+
+	dc.ClearFailures()
+	env, err = EnsureRunning(dc, sc, "foo")
+	assert.True(env.Container.Running)
 	assert.Nil(err)
 }
 
