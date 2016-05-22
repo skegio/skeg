@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -75,6 +76,18 @@ func (rdc *TestDockerClient) RemoveContainer(name string) error {
 }
 
 func (rdc *TestDockerClient) StopContainer(name string) error {
+	if err, ok := rdc.failures["StopContainer"]; ok {
+		return err
+	}
+	var newContainers []docker.APIContainers
+	for _, cont := range rdc.containers {
+		if cont.Names[0] == fmt.Sprintf("/%s", name) {
+			cont.Status = "Exited (0) 13 hours ago"
+		}
+		newContainers = append(newContainers, cont)
+	}
+	rdc.containers = newContainers
+
 	return nil
 }
 
@@ -90,6 +103,17 @@ func (rdc *TestDockerClient) AddImage(image docker.APIImages) error {
 
 func (rdc *TestDockerClient) AddFailure(name string, message error) {
 	rdc.failures[name] = message
+}
+
+func (rdc *TestDockerClient) SetFailure(name string, message error) {
+	rdc.ClearFailures()
+	rdc.failures[name] = message
+}
+
+func (rdc *TestDockerClient) ClearFailures() {
+	for k := range rdc.failures {
+		delete(rdc.failures, k)
+	}
 }
 
 type MockSystemClient struct {
@@ -309,6 +333,58 @@ func TestParsePorts(t *testing.T) {
 		assert.Equal(test.output, result)
 		assert.Equal(test.err, err)
 	}
+}
+
+func TestEnsureStopped(t *testing.T) {
+	assert := assert.New(t)
+
+	tempdir, _ := ioutil.TempDir("", "ddc")
+	defer os.RemoveAll(tempdir)
+
+	sc, _ := NewSystemClientWithBase(tempdir)
+
+	dc, _ := NewTestDockerClient()
+	dc.AddContainer(
+		docker.APIContainers{
+			ID:     "foo",
+			Names:  []string{"/skeg_nate_foo"},
+			Image:  "skeg-nate-1234",
+			Status: "Up 12 hours",
+			Ports: []docker.APIPort{
+				{32768, 22, "tcp", "0.0.0.0"},
+			},
+			Labels: map[string]string{
+				"skeg.io/image/base": "clojure",
+			},
+		},
+	)
+	key, _ := sc.EnsureSSHKey()
+	sc.EnsureEnvironmentDir("foo", key)
+
+	var env Environment
+	var err error
+
+	_, err = EnsureStopped(dc, sc, "bar")
+
+	assert.Equal(err, errors.New("Environment bar doesn't exist."))
+
+	liError := errors.New("Listing error")
+	dc.SetFailure("ListContainers", liError)
+
+	_, err = EnsureStopped(dc, sc, "foo")
+	assert.Equal(err, liError)
+
+	stopError := errors.New("Stop error")
+	dc.SetFailure("StopContainer", stopError)
+
+	_, err = EnsureStopped(dc, sc, "foo")
+	assert.Equal(err, stopError)
+
+	dc.ClearFailures()
+	env, err = EnsureStopped(dc, sc, "foo")
+
+	assert.False(env.Container.Running)
+	assert.Nil(err)
 }
 
 // TODO: re-enable when TestDockerClient is a little smarter
