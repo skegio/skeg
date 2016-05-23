@@ -2,6 +2,10 @@
 
 ## unreleased (TBD)
 
+## v0.2.1 (2016-05-23)
+
+[Downloads](https://github.com/skegio/skeg/releases/tag/v0.2.1)
+
 * Ensure SSH port is functional before connecting
 
 ## v0.2 (2016-05-02)
