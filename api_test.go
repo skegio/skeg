@@ -189,6 +189,13 @@ func (tsc *TestSystemClient) RunSSH(command string, args []string) error {
 	return nil
 }
 
+func (tsc *TestSystemClient) CheckSSHPort(host string, port int64) error {
+	if err, ok := tsc.fails.failures["CheckSSHPort"]; ok {
+		return err
+	}
+	return nil
+}
+
 func NewTestDockerClient() *TestDockerClient {
 	return &TestDockerClient{
 		fails: NewFailures(),

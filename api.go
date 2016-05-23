@@ -619,6 +619,11 @@ func ConnectEnvironment(dc DockerClient, sc SystemClient, name string, extra []s
 		return err
 	}
 
+	err = sc.CheckSSHPort(host, sshPort.HostPort)
+	if err != nil {
+		return err
+	}
+
 	opts := []string{
 		host,
 		"-l", sc.Username(),

@@ -1,13 +1,19 @@
 package main
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
+
+	"github.com/Sirupsen/logrus"
 )
 
 type SystemClient interface {
@@ -20,6 +26,7 @@ type SystemClient interface {
 	UID() int
 	GID() int
 	RunSSH(command string, args []string) error
+	CheckSSHPort(host string, port int64) error
 }
 
 type RealSystemClient struct {
@@ -131,6 +138,34 @@ func (rsc *RealSystemClient) EnsureSSHKey() (SSHKey, error) {
 	}
 
 	return SSHKey{privPath, pubPath}, nil
+}
+
+func (rsc *RealSystemClient) CheckSSHPort(host string, port int64) error {
+	address := fmt.Sprintf("%s:%d", host, port)
+	timeouts := []time.Duration{0, 200, 500, 1000, 2000}
+	var err error
+	var conn net.Conn
+
+	for _, timeout := range timeouts {
+
+		logrus.Debugf("Waiting for %d millis %s", timeout, address)
+		time.Sleep(timeout * time.Millisecond)
+
+		conn, err = net.Dial("tcp", address)
+		if err != nil {
+			logrus.Debugf("error connecting to ssh port: %s", err)
+			continue
+		}
+
+		message, err := bufio.NewReader(conn).ReadString('\n')
+		logrus.Debugf("message: %s (%s)", message, err)
+		conn.Close()
+		if strings.Contains(message, "SSH") {
+			return nil
+		}
+	}
+
+	return errors.New("Unable to connect to SSH port on environment")
 }
 
 func (rsc *RealSystemClient) RunSSH(command string, args []string) error {
