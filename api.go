@@ -224,14 +224,11 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *
 				if tz, ok := userImages[0].Labels["skeg.io/image/timezone"]; ok {
 					co.Build.TimeZone = tz
 				}
-			} else {
-				fmt.Println("Detecitng time zone")
-				co.Build.TimeZone = sc.DetectTimeZone()
 			}
 		}
 
 		logrus.Debugf("Building customized docker image")
-		imageName, err = BuildImage(dc, co.Build, output)
+		imageName, err = BuildImage(dc, sc, co.Build, output)
 		if err != nil {
 			return err
 		}
@@ -388,12 +385,17 @@ func ResolveImage(dc DockerClient, io ImageOpts) (string, error) {
 	return image, nil
 }
 
-func BuildImage(dc DockerClient, bo BuildOpts, output *os.File) (string, error) {
+func BuildImage(dc DockerClient, sc SystemClient, bo BuildOpts, output *os.File) (string, error) {
 	var err error
 	logrus.Debugf("Figuring out which image to use")
 	image, err := ResolveImage(dc, bo.Image)
 	if err != nil {
 		return "", err
+	}
+
+	if len(bo.TimeZone) == 0 {
+		fmt.Println("Detecting time zone")
+		bo.TimeZone = sc.DetectTimeZone()
 	}
 
 	logrus.Debugf("Using image: %s", image)

@@ -10,6 +10,7 @@ type BuildCommand struct {
 	Version   string `short:"v" long:"version" description:"Version of environment type."`
 	Image     string `short:"i" long:"image" description:"Image to use for creating environment."`
 	ForcePull bool   `long:"force-pull" description:"Force pulling base image."`
+	TimeZone  string `long:"tz" description:"Time zone for container, specify like 'America/Los_Angeles'.  Defaults to local time zone, if detectable."`
 }
 
 var buildCommand BuildCommand
@@ -21,6 +22,7 @@ func (ccommand *BuildCommand) toBuildOpts(sc SystemClient) BuildOpts {
 			Version: ccommand.Version,
 			Image:   ccommand.Image,
 		},
+		TimeZone:  ccommand.TimeZone,
 		ForcePull: ccommand.ForcePull,
 		Username:  sc.Username(),
 		UID:       sc.UID(),
@@ -39,7 +41,7 @@ func (x *BuildCommand) Execute(args []string) error {
 		return err
 	}
 
-	image, err := BuildImage(dc, buildCommand.toBuildOpts(sc), os.Stdout)
+	image, err := BuildImage(dc, sc, buildCommand.toBuildOpts(sc), os.Stdout)
 	if err != nil {
 		return err
 	}
