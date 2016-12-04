@@ -531,7 +531,9 @@ func BaseImages(dc DockerClient) ([]*BaseImage, error) {
 			[]*BaseImageTag{
 				{"1.4", false, false},
 				{"1.5", false, false},
-				{"1.6", false, true},
+				{"1.6", false, false},
+				{"1.7", false, true},
+				{"1.8", false, false},
 			},
 		},
 		{

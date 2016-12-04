@@ -299,7 +299,9 @@ func TestBaseImages(t *testing.T) {
 				[]*BaseImageTag{
 					{"1.4", false, false},
 					{"1.5", false, false},
-					{"1.6", true, true},
+					{"1.6", true, false},
+					{"1.7", false, true},
+					{"1.8", false, false},
 				},
 			},
 			{
