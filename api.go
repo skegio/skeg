@@ -169,8 +169,10 @@ func RebuildEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output 
 	co.Volumes = volumes
 
 	logrus.Debugf("Set image opts")
-	co.Build.Image = ImageOpts{
-		Image: env.Container.Labels["skeg.io/image/base"],
+	if len(co.Build.Image.Image) == 0 && len(co.Build.Image.Version) == 0 && len(co.Build.Image.Type) == 0 {
+		co.Build.Image = ImageOpts{
+			Image: env.Container.Labels["skeg.io/image/base"],
+		}
 	}
 
 	if len(co.Build.TimeZone) == 0 {
