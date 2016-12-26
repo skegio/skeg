@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"runtime"
 	"time"
 
 	"github.com/Sirupsen/logrus"
@@ -246,8 +247,13 @@ func connectDocker() (*docker.Client, error) {
 	} else if len(globalOptions.Host) > 0 {
 		endpoint = globalOptions.Host
 	} else {
-		// assume local socket
-		endpoint = "unix:///var/run/docker.sock"
+		if runtime.GOOS == "windows" {
+			// use Docker for Windows endpoint
+			endpoint = "http://localhost:2375"
+		} else {
+			// assume local socket
+			endpoint = "unix:///var/run/docker.sock"
+		}
 	}
 
 	var client *docker.Client
