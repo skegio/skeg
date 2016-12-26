@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -181,8 +182,8 @@ func (rsc *RealSystemClient) RunSSH(command string, args []string) error {
 func NewSystemClient() (*RealSystemClient, error) {
 
 	var home string
-	if home = os.Getenv("HOME"); len(home) == 0 {
-		return nil, fmt.Errorf("$HOME environment variable not found")
+	if home = os.Getenv(HOME_ENV_NAME); len(home) == 0 {
+		return nil, fmt.Errorf("$%s environment variable not found", HOME_ENV_NAME)
 	}
 
 	return NewSystemClientWithBase(filepath.Join(home, ENVS_DIR))
@@ -192,21 +193,27 @@ func NewSystemClientWithBase(baseDir string) (*RealSystemClient, error) {
 
 	var user string
 
-	if user = os.Getenv("USER"); len(user) == 0 {
-		return nil, fmt.Errorf("$USER environment variable not found")
+	if user = os.Getenv(USER_ENV_NAME); len(user) == 0 {
+		return nil, fmt.Errorf("$%s environment variable not found", USER_ENV_NAME)
 	}
 
-	var uid int
+	// lowercase and sanitize username (mostly for windows)
+	user = strings.ToLower(strings.Replace(user, " ", "_", -1))
+
+	uid := os.Getuid()
+	gid := os.Getgid()
 	if env_endpoint := os.Getenv("DOCKER_MACHINE_NAME"); len(env_endpoint) > 0 {
 		uid = 1000
-	} else {
-		uid = os.Getuid()
+		gid = 1000
+	} else if runtime.GOOS == "windows" {
+		uid = 1000
+		gid = 1000
 	}
 
 	systemClient := RealSystemClient{
 		user:      user,
 		uid:       uid,
-		gid:       os.Getgid(),
+		gid:       gid,
 		baseDir:   baseDir,
 		envRegexp: regexp.MustCompile(fmt.Sprintf("%s/(.*)dev", user)),
 	}
