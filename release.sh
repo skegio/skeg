@@ -30,7 +30,7 @@ git tag $VER
 echo "Building $VER"
 echo
 
-gox -ldflags "-X main.version $VER" -osarch="darwin/amd64 linux/amd64"
+gox -ldflags "-X main.version $VER" -osarch="darwin/amd64 linux/amd64 windows/amd64"
 
 echo "* " > desc
 echo "" >> desc
@@ -51,3 +51,4 @@ sleep 2
 github-release release $PRE_ARG --user skegio --repo skeg --tag $VER --name $VER --description desc
 github-release upload --user skegio --repo skeg --tag $VER --name skeg_darwin_amd64 --file skeg_darwin_amd64
 github-release upload --user skegio --repo skeg --tag $VER --name skeg_linux_amd64 --file skeg_linux_amd64
+github-release upload --user skegio --repo skeg --tag $VER --name skeg_windows_amd64.exe --file skeg_windows_amd64.exe
