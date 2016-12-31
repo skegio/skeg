@@ -56,7 +56,7 @@ type CreateOpts struct {
 	Volumes       []string
 	ProjectDir    string
 	ForceBuild    bool
-	DockerVolume  bool
+	VolumeHome    bool
 	Build         BuildOpts
 }
 
@@ -201,8 +201,8 @@ func RebuildEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output 
 		}
 	}
 
-	if dockerVolume, ok := env.Container.Labels["skeg.io/container/docker_volume"]; ok {
-	    co.DockerVolume = (dockerVolume == "true")
+	if volumeHome, ok := env.Container.Labels["skeg.io/container/volume_home"]; ok {
+		co.VolumeHome = (volumeHome == "true")
 	}
 
 	// fmt.Println(co)
@@ -274,7 +274,7 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *
 	homeDir := fmt.Sprintf("/home/%s", sc.Username())
 	logrus.Debugf("Creating container")
 	volumes := co.Volumes
-	if co.DockerVolume {
+	if co.VolumeHome {
 		volumeName := fmt.Sprintf("%s_%s_%s", CONT_PREFIX, sc.Username(), co.Name)
 
 		// check for existence of volume
@@ -300,7 +300,7 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *
 	} else {
 		volumes = append(volumes, fmt.Sprintf("%s:%s", path, homeDir))
 	}
-	labels["skeg.io/container/docker_volume"] = fmt.Sprintf("%v", co.DockerVolume)
+	labels["skeg.io/container/volume_home"] = fmt.Sprintf("%v", co.VolumeHome)
 	workdirParts := strings.Split(co.ProjectDir, string(os.PathSeparator))
 	if len(co.ProjectDir) > 0 {
 		volumes = append(volumes, fmt.Sprintf("%s:%s/%s", co.ProjectDir, homeDir, workdirParts[len(workdirParts)-1]))
