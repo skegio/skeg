@@ -60,7 +60,7 @@ type DockerClient interface {
 	ListImages() ([]docker.APIImages, error)
 	ListImagesWithLabels(labels []string) ([]docker.APIImages, error)
 	PullImage(image string, output *os.File) error
-	BuildImage(name string, dockerfile string, output io.Writer) error
+	BuildImage(name string, dockerfile string, sshkey string, output io.Writer) error
 	CreateContainer(cco CreateContainerOpts) error
 	StartContainer(name string) error
 	StopContainer(name string) error
@@ -159,14 +159,15 @@ func (rdc *RealDockerClient) RemoveVolume(name string) error {
 	return rdc.dcl.RemoveVolume(name)
 }
 
-func (rdc *RealDockerClient) BuildImage(name string, dockerfile string, output io.Writer) error {
-	length := len(dockerfile)
+func (rdc *RealDockerClient) BuildImage(name string, dockerfile, sshkey string, output io.Writer) error {
 
 	t := time.Now()
 	inputbuf := bytes.NewBuffer(nil)
 	tr := tar.NewWriter(inputbuf)
-	tr.WriteHeader(&tar.Header{Name: "Dockerfile", Size: int64(length), ModTime: t, AccessTime: t, ChangeTime: t})
+	tr.WriteHeader(&tar.Header{Name: "Dockerfile", Size: int64(len(dockerfile)), ModTime: t, AccessTime: t, ChangeTime: t})
 	tr.Write([]byte(dockerfile))
+	tr.WriteHeader(&tar.Header{Name: "ssh_pub", Size: int64(len(sshkey)), ModTime: t, AccessTime: t, ChangeTime: t})
+	tr.Write([]byte(sshkey))
 	tr.Close()
 
 	opts := docker.BuildImageOptions{

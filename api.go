@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"regexp"
 	"sort"
@@ -250,7 +251,7 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *
 		}
 
 		logrus.Debugf("Building customized docker image")
-		imageName, err = BuildImage(dc, sc, co.Build, output)
+		imageName, err = BuildImage(dc, sc, key, co.Build, output)
 		if err != nil {
 			return err
 		}
@@ -260,7 +261,7 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *
 	}
 
 	logrus.Debugf("Preparing local environment directory")
-	path, err := sc.EnsureEnvironmentDir(co.Name, key)
+	path, err := sc.EnsureEnvironmentDir(co.Name)
 	if err != nil {
 		return err
 	}
@@ -436,7 +437,7 @@ func ResolveImage(dc DockerClient, io ImageOpts) (string, error) {
 	return image, nil
 }
 
-func BuildImage(dc DockerClient, sc SystemClient, bo BuildOpts, output *os.File) (string, error) {
+func BuildImage(dc DockerClient, sc SystemClient, key SSHKey, bo BuildOpts, output *os.File) (string, error) {
 	var err error
 	logrus.Debugf("Figuring out which image to use")
 	image, err := ResolveImage(dc, bo.Image)
@@ -462,7 +463,12 @@ func BuildImage(dc DockerClient, sc SystemClient, bo BuildOpts, output *os.File)
 
 RUN (addgroup --gid {{ .Gid }} {{ .Username }} || /bin/true) && \
     adduser --uid {{ .Uid }} --gid {{ .Gid }} {{ .Username }} --gecos "" --disabled-password && \
-    echo "{{ .Username }}   ALL=NOPASSWD: ALL" >> /etc/sudoers
+    echo "{{ .Username }}   ALL=NOPASSWD: ALL" >> /etc/sudoers && \
+    echo "AuthorizedKeysFile /etc/ssh/keys/authorized_keys" >> /etc/ssh/sshd_config
+
+COPY ssh_pub /etc/ssh/keys/authorized_keys
+RUN chown -R {{ .Gid }}:{{ .Uid }} /etc/ssh/keys && \
+    chmod 600 /etc/ssh/keys/authorized_keys
 
 {{ .TzSet }}
 
@@ -496,7 +502,13 @@ LABEL skeg.io/image/username={{ .Username }} \
 	}
 
 	imageName := fmt.Sprintf("%s-%s-%s", CONT_PREFIX, bo.Username, now.Format("20060102150405"))
-	err = dc.BuildImage(imageName, dockerfileBytes.String(), output)
+
+	data, err := ioutil.ReadFile(key.publicPath)
+	if err != nil {
+		return "", err
+	}
+
+	err = dc.BuildImage(imageName, dockerfileBytes.String(), string(data), output)
 
 	if err != nil {
 		return "", err
