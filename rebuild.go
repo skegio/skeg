@@ -9,7 +9,6 @@ type RebuildCommand struct {
 	BuildCommand
 	Ports        []string `short:"p" long:"port" description:"Ports to expose (similar to docker -p)."`
 	Volumes      []string `long:"volume" description:"Volume to mount (similar to docker -v)."`
-	DockerVolume bool     `long:"docker-volume" description:"Use docker volume for homedir instead of skeg dir"`
 	ForceBuild   bool     `long:"force-build" description:"Force building of new user image."`
 	Args         struct {
 		Name string `description:"Name of environment."`
@@ -21,7 +20,6 @@ func (ccommand *RebuildCommand) toCreateOpts(sc SystemClient) CreateOpts {
 		Name:         ccommand.Args.Name,
 		Ports:        ccommand.Ports,
 		Volumes:      ccommand.Volumes,
-		DockerVolume: ccommand.DockerVolume,
 		ForceBuild:   ccommand.ForceBuild || ccommand.ForcePull,
 		Build: BuildOpts{
 			Image: ImageOpts{

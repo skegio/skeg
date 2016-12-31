@@ -200,7 +200,9 @@ func RebuildEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output 
 		}
 	}
 
-	// TODO: look at skeg.io/container/docker_volume to see if DockerVolume needs to be set
+	if dockerVolume, ok := env.Container.Labels["skeg.io/container/docker_volume"]; ok {
+	    co.DockerVolume = (dockerVolume == "true")
+	}
 
 	// fmt.Println(co)
 
