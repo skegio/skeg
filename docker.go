@@ -45,6 +45,12 @@ type CreateContainerOpts struct {
 	Ports    []Port
 	Volumes  []string
 	Image    string
+	Labels   map[string]string
+}
+
+type CreateVolumeOpts struct {
+	Name   string
+	Labels map[string]string
 }
 
 type DockerClient interface {
@@ -60,6 +66,9 @@ type DockerClient interface {
 	StopContainer(name string) error
 	RemoveContainer(name string) error
 	ParseRepositoryTag(repoTag string) (string, string)
+	ListVolumes() ([]docker.Volume, error)
+	CreateVolume(CreateVolumeOpts) error
+	RemoveVolume(string) error
 }
 
 type RealDockerClient struct {
@@ -111,6 +120,7 @@ func (rdc *RealDockerClient) CreateContainer(cco CreateContainerOpts) error {
 		ExposedPorts: exposedPorts,
 		Image:        cco.Image,
 		Hostname:     cco.Hostname,
+		Labels:       cco.Labels,
 	}
 	hostConfig := docker.HostConfig{
 		Binds:        cco.Volumes,
@@ -123,6 +133,30 @@ func (rdc *RealDockerClient) CreateContainer(cco CreateContainerOpts) error {
 	}
 
 	return nil
+}
+
+func (rdc *RealDockerClient) CreateVolume(cvo CreateVolumeOpts) error {
+	_, err := rdc.dcl.CreateVolume(docker.CreateVolumeOptions{Name: cvo.Name, Labels: cvo.Labels})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (rdc *RealDockerClient) ListVolumes() ([]docker.Volume, error) {
+	var volumes []docker.Volume
+
+	volumes, err := rdc.dcl.ListVolumes(docker.ListVolumesOptions{})
+	if err != nil {
+		return volumes, err
+	}
+
+	return volumes, nil
+}
+
+func (rdc *RealDockerClient) RemoveVolume(name string) error {
+	return rdc.dcl.RemoveVolume(name)
 }
 
 func (rdc *RealDockerClient) BuildImage(name string, dockerfile string, output io.Writer) error {

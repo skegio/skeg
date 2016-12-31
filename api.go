@@ -54,6 +54,7 @@ type CreateOpts struct {
 	Volumes       []string
 	ProjectDir    string
 	ForceBuild    bool
+	DockerVolume  bool
 	Build         BuildOpts
 }
 
@@ -125,6 +126,23 @@ func DestroyEnvironment(dc DockerClient, sc SystemClient, envName string) error 
 		return err
 	}
 
+	volumeName := fmt.Sprintf("%s_%s_%s", CONT_PREFIX, sc.Username(), envName)
+	logrus.Debugf("removing docker volume (%s), if it exists", volumeName)
+
+	vols, err := dc.ListVolumes()
+	if err != nil {
+		return err
+	}
+
+	for _, vol := range vols {
+		if vol.Name == volumeName {
+			err = dc.RemoveVolume(volumeName)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -180,6 +198,8 @@ func RebuildEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output 
 			co.Build.TimeZone = tz
 		}
 	}
+
+	// TODO: look at skeg.io/container/docker_volume to see if DockerVolume needs to be set
 
 	// fmt.Println(co)
 
@@ -245,10 +265,38 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *
 		return err
 	}
 
+	labels := make(map[string]string)
+
 	homeDir := fmt.Sprintf("/home/%s", sc.Username())
 	logrus.Debugf("Creating container")
 	volumes := co.Volumes
-	volumes = append(volumes, fmt.Sprintf("%s:%s", path, homeDir))
+	if co.DockerVolume {
+		volumeName := fmt.Sprintf("%s_%s_%s", CONT_PREFIX, sc.Username(), co.Name)
+
+		// check for existence of volume
+		vols, err := dc.ListVolumes()
+		if err != nil {
+			return err
+		}
+
+		volumeFound := false
+		for _, vol := range vols {
+			if vol.Name == volumeName {
+				volumeFound = true
+			}
+		}
+
+		if !volumeFound {
+			dc.CreateVolume(CreateVolumeOpts{Name: volumeName, Labels: map[string]string{"skeg": "true"}})
+			if err != nil {
+				return err
+			}
+		}
+		volumes = append(volumes, fmt.Sprintf("%s:%s", volumeName, homeDir))
+	} else {
+		volumes = append(volumes, fmt.Sprintf("%s:%s", path, homeDir))
+	}
+	labels["skeg.io/container/docker_volume"] = fmt.Sprintf("%v", co.DockerVolume)
 	workdirParts := strings.Split(co.ProjectDir, string(os.PathSeparator))
 	if len(co.ProjectDir) > 0 {
 		volumes = append(volumes, fmt.Sprintf("%s:%s/%s", co.ProjectDir, homeDir, workdirParts[len(workdirParts)-1]))
@@ -276,6 +324,7 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *
 		Hostname: co.Name,
 		Ports:    ports,
 		Volumes:  volumes,
+		Labels:   labels,
 	}
 	err = dc.CreateContainer(ccont)
 	if err != nil {
