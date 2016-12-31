@@ -28,6 +28,7 @@ type UserImage struct {
 	Name     string
 	EnvCount int
 	Labels   map[string]string
+	Version  int
 }
 
 type BaseImage struct {
@@ -240,7 +241,7 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *
 
 	var imageName string
 	userImages, err := UserImages(dc, sc, co.Build.Image)
-	if co.ForceBuild || len(userImages) == 0 {
+	if co.ForceBuild || len(userImages) == 0 || (len(userImages) > 0 && userImages[0].Version < IMAGE_VERSION) {
 
 		// TODO: consider whether this is the best default (new image inherits
 		// previous image's time zone)
@@ -479,7 +480,8 @@ LABEL skeg.io/image/username={{ .Username }} \
       skeg.io/image/uid={{ .Uid }} \
       skeg.io/image/base={{ .Image }} \
       skeg.io/image/buildtime="{{ .Time }}" \
-      skeg.io/image/timezone="{{ .Tz }}"
+      skeg.io/image/timezone="{{ .Tz }}" \
+      skeg.io/image/version="{{ .Version }}"
 
 `
 	// TODO: make timezone setting work on other distributions
@@ -490,9 +492,9 @@ LABEL skeg.io/image/username={{ .Username }} \
 
 	dockerfileData := struct {
 		Username, Image, Time, TzSet, Tz string
-		Uid, Gid                         int
+		Uid, Gid, Version                int
 	}{
-		bo.Username, image, now.Format(time.UnixDate), tzenv, bo.TimeZone, bo.UID, bo.GID,
+		bo.Username, image, now.Format(time.UnixDate), tzenv, bo.TimeZone, bo.UID, bo.GID, IMAGE_VERSION,
 	}
 
 	tmpl := template.Must(template.New("dockerfile").Parse(dockerfileTmpl))
@@ -559,11 +561,17 @@ func UserImages(dc DockerClient, sc SystemClient, io ImageOpts) ([]UserImage, er
 	for _, dockerImage := range dockerImages {
 		tags := dockerImage.RepoTags
 
+		imageVersion := 0
+		if ver, ok := dockerImage.Labels["skeg.io/image/version"]; ok {
+			imageVersion, _ = strconv.Atoi(ver)
+		}
+
 		imageUses, _ := uses[tags[0]]
 		images = append(images, UserImage{
 			tags[0],
 			imageUses,
 			dockerImage.Labels,
+			imageVersion,
 		})
 	}
 
