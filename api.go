@@ -470,7 +470,7 @@ RUN (addgroup --gid {{ .Gid }} {{ .Username }} || /bin/true) && \
     echo "AuthorizedKeysFile /etc/ssh/keys/authorized_keys" >> /etc/ssh/sshd_config
 
 COPY ssh_pub /etc/ssh/keys/authorized_keys
-RUN chown -R {{ .Gid }}:{{ .Uid }} /etc/ssh/keys && \
+RUN chown -R {{ .Uid }}:{{ .Gid }} /etc/ssh/keys && \
     chmod 600 /etc/ssh/keys/authorized_keys
 
 {{ .TzSet }}
