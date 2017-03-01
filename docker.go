@@ -45,6 +45,12 @@ type CreateContainerOpts struct {
 	Ports    []Port
 	Volumes  []string
 	Image    string
+	Labels   map[string]string
+}
+
+type CreateVolumeOpts struct {
+	Name   string
+	Labels map[string]string
 }
 
 type DockerClient interface {
@@ -54,12 +60,15 @@ type DockerClient interface {
 	ListImages() ([]docker.APIImages, error)
 	ListImagesWithLabels(labels []string) ([]docker.APIImages, error)
 	PullImage(image string, output *os.File) error
-	BuildImage(name string, dockerfile string, output io.Writer) error
+	BuildImage(name string, dockerfile string, sshkey string, output io.Writer) error
 	CreateContainer(cco CreateContainerOpts) error
 	StartContainer(name string) error
 	StopContainer(name string) error
 	RemoveContainer(name string) error
 	ParseRepositoryTag(repoTag string) (string, string)
+	ListVolumes() ([]docker.Volume, error)
+	CreateVolume(CreateVolumeOpts) error
+	RemoveVolume(string) error
 }
 
 type RealDockerClient struct {
@@ -111,6 +120,7 @@ func (rdc *RealDockerClient) CreateContainer(cco CreateContainerOpts) error {
 		ExposedPorts: exposedPorts,
 		Image:        cco.Image,
 		Hostname:     cco.Hostname,
+		Labels:       cco.Labels,
 	}
 	hostConfig := docker.HostConfig{
 		Binds:        cco.Volumes,
@@ -125,14 +135,39 @@ func (rdc *RealDockerClient) CreateContainer(cco CreateContainerOpts) error {
 	return nil
 }
 
-func (rdc *RealDockerClient) BuildImage(name string, dockerfile string, output io.Writer) error {
-	length := len(dockerfile)
+func (rdc *RealDockerClient) CreateVolume(cvo CreateVolumeOpts) error {
+	_, err := rdc.dcl.CreateVolume(docker.CreateVolumeOptions{Name: cvo.Name, Labels: cvo.Labels})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (rdc *RealDockerClient) ListVolumes() ([]docker.Volume, error) {
+	var volumes []docker.Volume
+
+	volumes, err := rdc.dcl.ListVolumes(docker.ListVolumesOptions{})
+	if err != nil {
+		return volumes, err
+	}
+
+	return volumes, nil
+}
+
+func (rdc *RealDockerClient) RemoveVolume(name string) error {
+	return rdc.dcl.RemoveVolume(name)
+}
+
+func (rdc *RealDockerClient) BuildImage(name string, dockerfile, sshkey string, output io.Writer) error {
 
 	t := time.Now()
 	inputbuf := bytes.NewBuffer(nil)
 	tr := tar.NewWriter(inputbuf)
-	tr.WriteHeader(&tar.Header{Name: "Dockerfile", Size: int64(length), ModTime: t, AccessTime: t, ChangeTime: t})
+	tr.WriteHeader(&tar.Header{Name: "Dockerfile", Size: int64(len(dockerfile)), ModTime: t, AccessTime: t, ChangeTime: t})
 	tr.Write([]byte(dockerfile))
+	tr.WriteHeader(&tar.Header{Name: "ssh_pub", Size: int64(len(sshkey)), ModTime: t, AccessTime: t, ChangeTime: t})
+	tr.Write([]byte(sshkey))
 	tr.Close()
 
 	opts := docker.BuildImageOptions{

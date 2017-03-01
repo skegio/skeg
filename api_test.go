@@ -81,7 +81,7 @@ func (rdc *TestDockerClient) PullImage(fullImage string, output *os.File) error 
 	return nil
 }
 
-func (rdc *TestDockerClient) BuildImage(name string, dockerfile string, output io.Writer) error {
+func (rdc *TestDockerClient) BuildImage(name string, dockerfile string, key string, output io.Writer) error {
 	return nil
 }
 
@@ -139,6 +139,18 @@ func (rdc *TestDockerClient) AddImage(image docker.APIImages) error {
 	return nil
 }
 
+func (rdc *TestDockerClient) ListVolumes() ([]docker.Volume, error) {
+	return []docker.Volume{}, nil
+}
+
+func (rdc *TestDockerClient) CreateVolume(cvo CreateVolumeOpts) error {
+	return nil
+}
+
+func (rdc *TestDockerClient) RemoveVolume(name string) error {
+	return nil
+}
+
 type TestSystemClient struct {
 	environments []string
 	sshArgs      [][]string
@@ -168,7 +180,7 @@ func (tsc *TestSystemClient) GID() int {
 	return 1000
 }
 
-func (tsc *TestSystemClient) EnsureEnvironmentDir(envName string, keys SSHKey) (string, error) {
+func (tsc *TestSystemClient) EnsureEnvironmentDir(envName string) (string, error) {
 	if err, ok := tsc.fails.failures["EnsureEnvironmentDir"]; ok {
 		return envName, err
 	}
@@ -228,8 +240,7 @@ func TestEnvironments(t *testing.T) {
 			},
 		},
 	)
-	key, _ := sc.EnsureSSHKey()
-	sc.EnsureEnvironmentDir("foo", key)
+	sc.EnsureEnvironmentDir("foo")
 
 	var envs map[string]Environment
 	var err error
@@ -400,8 +411,7 @@ func TestEnsureStopped(t *testing.T) {
 			},
 		},
 	)
-	key, _ := sc.EnsureSSHKey()
-	sc.EnsureEnvironmentDir("foo", key)
+	sc.EnsureEnvironmentDir("foo")
 
 	var env Environment
 	var err error
@@ -448,8 +458,7 @@ func TestEnsureRunning(t *testing.T) {
 			},
 		},
 	)
-	key, _ := sc.EnsureSSHKey()
-	sc.EnsureEnvironmentDir("foo", key)
+	sc.EnsureEnvironmentDir("foo")
 
 	var env Environment
 	var err error
@@ -477,7 +486,6 @@ func TestConnectEnvironment(t *testing.T) {
 	assert := assert.New(t)
 
 	sc := NewTestSystemClient()
-	key, _ := sc.EnsureSSHKey()
 
 	dc := NewTestDockerClient()
 	dc.AddContainer(
@@ -494,7 +502,7 @@ func TestConnectEnvironment(t *testing.T) {
 			},
 		},
 	)
-	sc.EnsureEnvironmentDir("foo", key)
+	sc.EnsureEnvironmentDir("foo")
 	dc.AddContainer(
 		docker.APIContainers{
 			ID:     "qux",
@@ -507,7 +515,7 @@ func TestConnectEnvironment(t *testing.T) {
 			},
 		},
 	)
-	sc.EnsureEnvironmentDir("buz", key)
+	sc.EnsureEnvironmentDir("buz")
 	dc.AddContainer(
 		docker.APIContainers{
 			ID:     "buz",
@@ -522,8 +530,8 @@ func TestConnectEnvironment(t *testing.T) {
 			},
 		},
 	)
-	sc.EnsureEnvironmentDir("qux", key)
-	sc.EnsureEnvironmentDir("oof", key)
+	sc.EnsureEnvironmentDir("qux")
+	sc.EnsureEnvironmentDir("oof")
 
 	var env Environment
 	var err error

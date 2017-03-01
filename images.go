@@ -63,7 +63,7 @@ func listImages(images []*BaseImage) error {
 
 func listUserImages(images []UserImage) error {
 	for _, im := range images {
-		fmt.Printf("%s (%d envs)\n", im.Name, im.EnvCount)
+		fmt.Printf("%s (ver: %d) (%d envs)\n", im.Name, im.Version, im.EnvCount)
 		fmt.Printf("  build time: %s\n", im.Labels["skeg.io/image/buildtime"])
 		fmt.Printf("  time zone: %s\n", im.Labels["skeg.io/image/timezone"])
 	}

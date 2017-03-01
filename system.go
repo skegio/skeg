@@ -20,7 +20,7 @@ import (
 type SystemClient interface {
 	EnvironmentDirs() ([]string, error)
 	DetectTimeZone() string
-	EnsureEnvironmentDir(envName string, keys SSHKey) (string, error)
+	EnsureEnvironmentDir(envName string) (string, error)
 	RemoveEnvironmentDir(envName string) error
 	EnsureSSHKey() (SSHKey, error)
 	Username() string
@@ -87,26 +87,10 @@ func (rsc *RealSystemClient) GID() int {
 	return rsc.gid
 }
 
-func (rsc *RealSystemClient) EnsureEnvironmentDir(envName string, keys SSHKey) (string, error) {
+func (rsc *RealSystemClient) EnsureEnvironmentDir(envName string) (string, error) {
 
 	envPath := filepath.Join(rsc.baseDir, envName)
 	err := os.MkdirAll(envPath, 0755)
-	if err != nil {
-		return "", err
-	}
-
-	sshPath := filepath.Join(envPath, ".ssh")
-	err = os.MkdirAll(sshPath, 0700)
-	if err != nil {
-		return "", err
-	}
-
-	akPath := filepath.Join(sshPath, "authorized_keys")
-	data, err := ioutil.ReadFile(keys.publicPath)
-	if err != nil {
-		return "", err
-	}
-	err = ioutil.WriteFile(akPath, data, 0700)
 	if err != nil {
 		return "", err
 	}

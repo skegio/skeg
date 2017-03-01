@@ -41,7 +41,12 @@ func (x *BuildCommand) Execute(args []string) error {
 		return err
 	}
 
-	image, err := BuildImage(dc, sc, buildCommand.toBuildOpts(sc), os.Stdout)
+	key, err := sc.EnsureSSHKey()
+	if err != nil {
+		return err
+	}
+
+	image, err := BuildImage(dc, sc, key, buildCommand.toBuildOpts(sc), os.Stdout)
 	if err != nil {
 		return err
 	}

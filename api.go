@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"regexp"
 	"sort"
@@ -27,6 +28,7 @@ type UserImage struct {
 	Name     string
 	EnvCount int
 	Labels   map[string]string
+	Version  int
 }
 
 type BaseImage struct {
@@ -54,6 +56,7 @@ type CreateOpts struct {
 	Volumes       []string
 	ProjectDir    string
 	ForceBuild    bool
+	VolumeHome    bool
 	Build         BuildOpts
 }
 
@@ -125,6 +128,23 @@ func DestroyEnvironment(dc DockerClient, sc SystemClient, envName string) error 
 		return err
 	}
 
+	volumeName := fmt.Sprintf("%s_%s_%s", CONT_PREFIX, sc.Username(), envName)
+	logrus.Debugf("removing docker volume (%s), if it exists", volumeName)
+
+	vols, err := dc.ListVolumes()
+	if err != nil {
+		return err
+	}
+
+	for _, vol := range vols {
+		if vol.Name == volumeName {
+			err = dc.RemoveVolume(volumeName)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -181,6 +201,10 @@ func RebuildEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output 
 		}
 	}
 
+	if volumeHome, ok := env.Container.Labels["skeg.io/container/volume_home"]; ok {
+		co.VolumeHome = (volumeHome == "true")
+	}
+
 	// fmt.Println(co)
 
 	logrus.Debugf("Stopping environment")
@@ -217,7 +241,7 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *
 
 	var imageName string
 	userImages, err := UserImages(dc, sc, co.Build.Image)
-	if co.ForceBuild || len(userImages) == 0 {
+	if co.ForceBuild || len(userImages) == 0 || (len(userImages) > 0 && userImages[0].Version < IMAGE_VERSION) {
 
 		// TODO: consider whether this is the best default (new image inherits
 		// previous image's time zone)
@@ -230,7 +254,7 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *
 		}
 
 		logrus.Debugf("Building customized docker image")
-		imageName, err = BuildImage(dc, sc, co.Build, output)
+		imageName, err = BuildImage(dc, sc, key, co.Build, output)
 		if err != nil {
 			return err
 		}
@@ -240,15 +264,43 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *
 	}
 
 	logrus.Debugf("Preparing local environment directory")
-	path, err := sc.EnsureEnvironmentDir(co.Name, key)
+	path, err := sc.EnsureEnvironmentDir(co.Name)
 	if err != nil {
 		return err
 	}
 
+	labels := make(map[string]string)
+
 	homeDir := fmt.Sprintf("/home/%s", sc.Username())
 	logrus.Debugf("Creating container")
 	volumes := co.Volumes
-	volumes = append(volumes, fmt.Sprintf("%s:%s", path, homeDir))
+	if co.VolumeHome {
+		volumeName := fmt.Sprintf("%s_%s_%s", CONT_PREFIX, sc.Username(), co.Name)
+
+		// check for existence of volume
+		vols, err := dc.ListVolumes()
+		if err != nil {
+			return err
+		}
+
+		volumeFound := false
+		for _, vol := range vols {
+			if vol.Name == volumeName {
+				volumeFound = true
+			}
+		}
+
+		if !volumeFound {
+			dc.CreateVolume(CreateVolumeOpts{Name: volumeName, Labels: map[string]string{"skeg": "true"}})
+			if err != nil {
+				return err
+			}
+		}
+		volumes = append(volumes, fmt.Sprintf("%s:%s", volumeName, homeDir))
+	} else {
+		volumes = append(volumes, fmt.Sprintf("%s:%s", path, homeDir))
+	}
+	labels["skeg.io/container/volume_home"] = fmt.Sprintf("%v", co.VolumeHome)
 	workdirParts := strings.Split(co.ProjectDir, string(os.PathSeparator))
 	if len(co.ProjectDir) > 0 {
 		volumes = append(volumes, fmt.Sprintf("%s:%s/%s", co.ProjectDir, homeDir, workdirParts[len(workdirParts)-1]))
@@ -276,6 +328,7 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *
 		Hostname: co.Name,
 		Ports:    ports,
 		Volumes:  volumes,
+		Labels:   labels,
 	}
 	err = dc.CreateContainer(ccont)
 	if err != nil {
@@ -387,7 +440,7 @@ func ResolveImage(dc DockerClient, io ImageOpts) (string, error) {
 	return image, nil
 }
 
-func BuildImage(dc DockerClient, sc SystemClient, bo BuildOpts, output *os.File) (string, error) {
+func BuildImage(dc DockerClient, sc SystemClient, key SSHKey, bo BuildOpts, output *os.File) (string, error) {
 	var err error
 	logrus.Debugf("Figuring out which image to use")
 	image, err := ResolveImage(dc, bo.Image)
@@ -413,7 +466,12 @@ func BuildImage(dc DockerClient, sc SystemClient, bo BuildOpts, output *os.File)
 
 RUN (addgroup --gid {{ .Gid }} {{ .Username }} || /bin/true) && \
     adduser --uid {{ .Uid }} --gid {{ .Gid }} {{ .Username }} --gecos "" --disabled-password && \
-    echo "{{ .Username }}   ALL=NOPASSWD: ALL" >> /etc/sudoers
+    echo "{{ .Username }}   ALL=NOPASSWD: ALL" >> /etc/sudoers && \
+    echo "AuthorizedKeysFile /etc/ssh/keys/authorized_keys" >> /etc/ssh/sshd_config
+
+COPY ssh_pub /etc/ssh/keys/authorized_keys
+RUN chown -R {{ .Uid }}:{{ .Gid }} /etc/ssh/keys && \
+    chmod 600 /etc/ssh/keys/authorized_keys
 
 {{ .TzSet }}
 
@@ -422,7 +480,8 @@ LABEL skeg.io/image/username={{ .Username }} \
       skeg.io/image/uid={{ .Uid }} \
       skeg.io/image/base={{ .Image }} \
       skeg.io/image/buildtime="{{ .Time }}" \
-      skeg.io/image/timezone="{{ .Tz }}"
+      skeg.io/image/timezone="{{ .Tz }}" \
+      skeg.io/image/version="{{ .Version }}"
 
 `
 	// TODO: make timezone setting work on other distributions
@@ -433,9 +492,9 @@ LABEL skeg.io/image/username={{ .Username }} \
 
 	dockerfileData := struct {
 		Username, Image, Time, TzSet, Tz string
-		Uid, Gid                         int
+		Uid, Gid, Version                int
 	}{
-		bo.Username, image, now.Format(time.UnixDate), tzenv, bo.TimeZone, bo.UID, bo.GID,
+		bo.Username, image, now.Format(time.UnixDate), tzenv, bo.TimeZone, bo.UID, bo.GID, IMAGE_VERSION,
 	}
 
 	tmpl := template.Must(template.New("dockerfile").Parse(dockerfileTmpl))
@@ -447,7 +506,13 @@ LABEL skeg.io/image/username={{ .Username }} \
 	}
 
 	imageName := fmt.Sprintf("%s-%s-%s", CONT_PREFIX, bo.Username, now.Format("20060102150405"))
-	err = dc.BuildImage(imageName, dockerfileBytes.String(), output)
+
+	data, err := ioutil.ReadFile(key.publicPath)
+	if err != nil {
+		return "", err
+	}
+
+	err = dc.BuildImage(imageName, dockerfileBytes.String(), string(data), output)
 
 	if err != nil {
 		return "", err
@@ -496,11 +561,17 @@ func UserImages(dc DockerClient, sc SystemClient, io ImageOpts) ([]UserImage, er
 	for _, dockerImage := range dockerImages {
 		tags := dockerImage.RepoTags
 
+		imageVersion := 0
+		if ver, ok := dockerImage.Labels["skeg.io/image/version"]; ok {
+			imageVersion, _ = strconv.Atoi(ver)
+		}
+
 		imageUses, _ := uses[tags[0]]
 		images = append(images, UserImage{
 			tags[0],
 			imageUses,
 			dockerImage.Labels,
+			imageVersion,
 		})
 	}
 
