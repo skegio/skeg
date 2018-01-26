@@ -26,10 +26,12 @@ func (x *ConnectCommand) Execute(args []string) error {
 }
 
 func init() {
-	_, err := parser.AddCommand("connect",
+	cmd, err := parser.AddCommand("connect",
 		"Connect to an environment.",
 		"",
 		&connectCommand)
+
+	cmd.Aliases = append(cmd.Aliases, "ssh")
 
 	if err != nil {
 		fmt.Println(err)
