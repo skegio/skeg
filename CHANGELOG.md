@@ -2,6 +2,16 @@
 
 ## unreleased (TBD)
 
+## v0.4.0 (2018-01-26)
+
+[Downloads](https://github.com/skegio/skeg/releases/tag/v0.4.0)
+
+* add `ssh-config` command to print out ssh config for an env
+* handle ssh key inclusion with more flexibility
+* limit user image search to the version that skeg is using
+* add `ssh` alias for `connect`
+* add `ls` alias for `list`
+
 ## v0.3.0 (2017-02-28)
 
 [Downloads](https://github.com/skegio/skeg/releases/tag/v0.3.0)
