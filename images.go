@@ -27,7 +27,7 @@ func (x *ImagesCommand) Execute(args []string) error {
 			Type:    imagesCommand.Type,
 			Version: imagesCommand.Version,
 			Image:   imagesCommand.Image,
-		})
+		}, -1)
 		if err != nil {
 			return err
 		}

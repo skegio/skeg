@@ -240,8 +240,8 @@ func CreateEnvironment(dc DockerClient, sc SystemClient, co CreateOpts, output *
 	}
 
 	var imageName string
-	userImages, err := UserImages(dc, sc, co.Build.Image)
-	if co.ForceBuild || len(userImages) == 0 || (len(userImages) > 0 && userImages[0].Version < IMAGE_VERSION) {
+	userImages, err := UserImages(dc, sc, co.Build.Image, IMAGE_VERSION)
+	if co.ForceBuild || len(userImages) == 0 {
 
 		// TODO: consider whether this is the best default (new image inherits
 		// previous image's time zone)
@@ -521,7 +521,7 @@ LABEL skeg.io/image/username={{ .Username }} \
 	return imageName, nil
 }
 
-func UserImages(dc DockerClient, sc SystemClient, io ImageOpts) ([]UserImage, error) {
+func UserImages(dc DockerClient, sc SystemClient, io ImageOpts, version int) ([]UserImage, error) {
 	images := make([]UserImage, 0)
 
 	image, err := ResolveImage(dc, io)
@@ -532,6 +532,9 @@ func UserImages(dc DockerClient, sc SystemClient, io ImageOpts) ([]UserImage, er
 	labels := []string{
 		fmt.Sprintf("skeg.io/image/base=%s", image),
 		fmt.Sprintf("skeg.io/image/username=%s", sc.Username()),
+	}
+	if version >= 0 {
+		labels = append(labels, fmt.Sprintf("skeg.io/image/version=%d", version))
 	}
 	dockerImages, err := dc.ListImagesWithLabels(labels)
 	if err != nil {
