@@ -2,6 +2,33 @@
 
 ## unreleased (TBD)
 
+## v0.3.0 (2017-02-28)
+
+[Downloads](https://github.com/skegio/skeg/releases/tag/v0.3.0)
+
+* add --volume-home option to use a Docker volume for homedir instead of host mount
+* move ssh key into user image, so less set up required for homedir
+
+## v0.2.4 (2016-12-26)
+
+[Downloads](https://github.com/skegio/skeg/releases/tag/v0.2.4)
+
+* add default windows docker endpoint
+
+## v0.2.3 (2016-12-23)
+
+[Downloads](https://github.com/skegio/skeg/releases/tag/v0.2.3)
+
+* update vendor dependencies
+* add windows build
+
+## v0.2.2 (2016-12-04)
+
+[Downloads](https://github.com/skegio/skeg/releases/tag/v0.2.2)
+
+- allow specifying a different image when running `skeg rebuild ...`
+- updated core images to include Go 1.7 and 1.8 (beta)
+
 ## v0.2.1 (2016-05-23)
 
 [Downloads](https://github.com/skegio/skeg/releases/tag/v0.2.1)
