@@ -467,11 +467,11 @@ func BuildImage(dc DockerClient, sc SystemClient, key SSHKey, bo BuildOpts, outp
 RUN (addgroup --gid {{ .Gid }} {{ .Username }} || /bin/true) && \
     adduser --uid {{ .Uid }} --gid {{ .Gid }} {{ .Username }} --gecos "" --disabled-password && \
     echo "{{ .Username }}   ALL=NOPASSWD: ALL" >> /etc/sudoers && \
-    echo "AuthorizedKeysFile /etc/ssh/keys/authorized_keys" >> /etc/ssh/sshd_config
+    echo "AuthorizedKeysFile .ssh/authorized_keys .ssh/authorized_keys2 /etc/ssh/keys/%u/authorized_keys" >> /etc/ssh/sshd_config
 
-COPY ssh_pub /etc/ssh/keys/authorized_keys
-RUN chown -R {{ .Uid }}:{{ .Gid }} /etc/ssh/keys && \
-    chmod 600 /etc/ssh/keys/authorized_keys
+COPY ssh_pub /etc/ssh/keys/{{ .Username }}/authorized_keys
+RUN chown -R {{ .Uid }}:{{ .Gid }} /etc/ssh/keys/{{ .Username }}/ && \
+    chmod 600 /etc/ssh/keys/{{ .Username }}/authorized_keys
 
 {{ .TzSet }}
 

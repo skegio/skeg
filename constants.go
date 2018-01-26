@@ -16,4 +16,5 @@ const ENVS_DIR string = "skegs"
 //
 //  version 0: user/tz creation
 //  version 1: ssh key inclusion
-const IMAGE_VERSION int = 1
+//  version 2: ssh key flexibility (prev ssh work was too restrictive)
+const IMAGE_VERSION int = 2
