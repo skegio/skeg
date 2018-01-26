@@ -669,6 +669,88 @@ func ConnectEnvironment(dc DockerClient, sc SystemClient, name string, extra []s
 		return errors.New("No container found")
 	}
 
+	host, port, err := containerSshHostPort(env)
+	if err != nil {
+		return err
+	}
+
+	key, err := sc.EnsureSSHKey()
+	if err != nil {
+		return err
+	}
+
+	err = sc.CheckSSHPort(host, port)
+	if err != nil {
+		return err
+	}
+
+	opts := []string{
+		host,
+		"-l", sc.Username(),
+		"-p", fmt.Sprintf("%d", port),
+		"-i", key.privatePath,
+		"-o", "UserKnownHostsFile /dev/null",
+		"-o", "StrictHostKeyChecking no",
+	}
+
+	return sc.RunSSH(
+		"ssh", append(opts, extra...),
+	)
+}
+
+func SshConfigEnvironment(dc DockerClient, sc SystemClient, name string) (string, error) {
+	env, err := EnsureRunning(dc, sc, name)
+	if err != nil {
+		return "", err
+	}
+
+	// TODO: create container
+	if env.Container == nil {
+		return "", errors.New("No container found")
+	}
+
+	host, port, err := containerSshHostPort(env)
+	if err != nil {
+		return "", err
+	}
+
+	key, err := sc.EnsureSSHKey()
+	if err != nil {
+		return "", err
+	}
+
+	sshConfig := `Host {{ .Name }}
+  HostName {{ .Host }}
+  User {{ .Username }}
+  Port {{ .Port }}
+  UserKnownHostsFile /dev/null
+  StrictHostKeyChecking no
+  PasswordAuthentication no
+  IdentityFile {{ .KeyPath }}
+  IdentitiesOnly yes
+  LogLevel FATAL
+
+`
+	sshConfigData := struct {
+		Name, Host, Username, KeyPath string
+		Port                          int64
+	}{
+		env.Name, host, sc.Username(), key.privatePath, port,
+	}
+
+	tmpl := template.Must(template.New("ssh-config").Parse(sshConfig))
+	var configBytes bytes.Buffer
+
+	err = tmpl.Execute(&configBytes, sshConfigData)
+	if err != nil {
+		return "", nil
+	}
+
+	return configBytes.String(), nil
+}
+
+func containerSshHostPort(env Environment) (string, int64, error) {
+
 	var sshPort Port
 	for _, port := range env.Container.Ports {
 		if port.ContainerPort == 22 {
@@ -677,7 +759,7 @@ func ConnectEnvironment(dc DockerClient, sc SystemClient, name string, extra []s
 	}
 
 	if sshPort.HostPort == 0 {
-		return errors.New("Running container doesn't have ssh running")
+		return "", 0, errors.New("Running container doesn't have ssh running")
 	}
 
 	var host string
@@ -694,28 +776,7 @@ func ConnectEnvironment(dc DockerClient, sc SystemClient, name string, extra []s
 		}
 	}
 
-	key, err := sc.EnsureSSHKey()
-	if err != nil {
-		return err
-	}
-
-	err = sc.CheckSSHPort(host, sshPort.HostPort)
-	if err != nil {
-		return err
-	}
-
-	opts := []string{
-		host,
-		"-l", sc.Username(),
-		"-p", fmt.Sprintf("%d", sshPort.HostPort),
-		"-i", key.privatePath,
-		"-o", "UserKnownHostsFile /dev/null",
-		"-o", "StrictHostKeyChecking no",
-	}
-
-	return sc.RunSSH(
-		"ssh", append(opts, extra...),
-	)
+	return host, sshPort.HostPort, nil
 }
 
 func Environments(dc DockerClient, sc SystemClient) (map[string]Environment, error) {
