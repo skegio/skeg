@@ -7,6 +7,7 @@ type ImagesCommand struct {
 	Type    string `short:"t" long:"type" description:"Type of environment."`
 	Version string `short:"v" long:"version" description:"Version of environment type."`
 	Image   string `short:"i" long:"image" description:"Image to use for creating environment."`
+	Prune   bool   `short:"p" long:"prune" description:"Prune unused user images."`
 }
 
 var imagesCommand ImagesCommand
@@ -32,6 +33,18 @@ func (x *ImagesCommand) Execute(args []string) error {
 			return err
 		}
 
+		if imagesCommand.Prune {
+			for _, im := range userImages {
+				if im.EnvCount == 0 {
+					fmt.Printf("Removing %s...\n", im.Name)
+					err = RemoveUserImage(dc, im)
+					if err != nil {
+						return err
+					}
+				}
+			}
+			return nil
+		}
 		return listUserImages(userImages)
 	}
 

@@ -69,6 +69,7 @@ type DockerClient interface {
 	ListVolumes() ([]docker.Volume, error)
 	CreateVolume(CreateVolumeOpts) error
 	RemoveVolume(string) error
+	RemoveImage(string) error
 }
 
 type RealDockerClient struct {
@@ -157,6 +158,10 @@ func (rdc *RealDockerClient) ListVolumes() ([]docker.Volume, error) {
 
 func (rdc *RealDockerClient) RemoveVolume(name string) error {
 	return rdc.dcl.RemoveVolume(name)
+}
+
+func (rdc *RealDockerClient) RemoveImage(name string) error {
+	return rdc.dcl.RemoveImage(name)
 }
 
 func (rdc *RealDockerClient) BuildImage(name string, dockerfile, sshkey string, output io.Writer) error {

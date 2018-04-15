@@ -583,6 +583,10 @@ func UserImages(dc DockerClient, sc SystemClient, io ImageOpts, version int) ([]
 	return images, nil
 }
 
+func RemoveUserImage(dc DockerClient, im UserImage) error {
+	return dc.RemoveImage(im.Name)
+}
+
 func BaseImages(dc DockerClient) ([]*BaseImage, error) {
 
 	images := make([]*BaseImage, 0)
