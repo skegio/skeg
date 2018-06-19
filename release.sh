@@ -30,7 +30,7 @@ git tag $VER
 echo "Building $VER"
 echo
 
-gox -ldflags "-X main.version $VER" -osarch="darwin/amd64 linux/amd64 windows/amd64"
+gox -ldflags "-X main.version=$VER" -osarch="darwin/amd64 linux/amd64 windows/amd64"
 
 echo "* " > desc
 echo "" >> desc
