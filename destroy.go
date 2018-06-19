@@ -25,10 +25,12 @@ func (x *DestroyCommand) Execute(args []string) error {
 }
 
 func init() {
-	_, err := parser.AddCommand("destroy",
+	cmd, err := parser.AddCommand("destroy",
 		"Destroy an environment.",
 		"",
 		&destroyCommand)
+
+	cmd.Aliases = append(cmd.Aliases, "rm")
 
 	if err != nil {
 		fmt.Println(err)
