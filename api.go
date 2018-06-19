@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -108,8 +110,7 @@ func ParsePorts(portSpecs []string) ([]Port, error) {
 	return ports, nil
 }
 
-func DestroyEnvironment(dc DockerClient, sc SystemClient, envName string) error {
-
+func DestroyContainer(dc DockerClient, sc SystemClient, envName string) error {
 	logrus.Debugf("Stopping environment")
 	env, err := EnsureStopped(dc, sc, envName)
 	if err != nil {
@@ -121,6 +122,57 @@ func DestroyEnvironment(dc DockerClient, sc SystemClient, envName string) error 
 		if err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func FreezeEnvironment(dc DockerClient, sc SystemClient, envName string) error {
+
+	env, err := GetEnvironment(dc, sc, envName)
+	if err != nil {
+		return err
+	}
+
+	path, err := sc.EnsureEnvironmentDir(envName)
+	if err != nil {
+		return err
+	}
+
+	// save the env info into a json file
+	data, err := json.MarshalIndent(env, "", "    ")
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Saving environment metadata...")
+	ioutil.WriteFile(filepath.Join(path, "skeg.json"), data, 0644)
+	if err != nil {
+		return err
+	}
+
+	// destroy the container
+	fmt.Println("Destroying container...")
+	err = DestroyContainer(dc, sc, envName)
+	if err != nil {
+		return err
+	}
+
+	// tarball it up
+	fmt.Printf("Tarballing up files...skipping tarball creation, env directory is %s.\n", path)
+
+	return nil
+}
+
+func DestroyEnvironment(dc DockerClient, sc SystemClient, envName string) error {
+	err := DestroyContainer(dc, sc, envName)
+	if err != nil {
+		return err
+	}
+
+	env, err := GetEnvironment(dc, sc, envName)
+	if err != nil {
+		return err
 	}
 
 	logrus.Debugf("Removing local environment directory")
