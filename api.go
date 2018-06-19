@@ -27,6 +27,7 @@ type Environment struct {
 type UserImage struct {
 	Name     string
 	EnvCount int
+	EnvList  []string
 	Labels   map[string]string
 	Version  int
 }
@@ -524,18 +525,27 @@ LABEL skeg.io/image/username={{ .Username }} \
 func UserImages(dc DockerClient, sc SystemClient, io ImageOpts, version int) ([]UserImage, error) {
 	images := make([]UserImage, 0)
 
-	image, err := ResolveImage(dc, io)
-	if err != nil {
-		return images, err
+	var labels []string
+	var image string
+	if len(io.Image) == 0 && len(io.Type) == 0 && len(io.Version) == 0 {
+		labels = []string{
+			fmt.Sprintf("skeg.io/image/username=%s", sc.Username()),
+		}
+	} else {
+		image, err := ResolveImage(dc, io)
+		if err != nil {
+			return images, err
+		}
+
+		labels = []string{
+			fmt.Sprintf("skeg.io/image/base=%s", image),
+			fmt.Sprintf("skeg.io/image/username=%s", sc.Username()),
+		}
+		if version >= 0 {
+			labels = append(labels, fmt.Sprintf("skeg.io/image/version=%d", version))
+		}
 	}
 
-	labels := []string{
-		fmt.Sprintf("skeg.io/image/base=%s", image),
-		fmt.Sprintf("skeg.io/image/username=%s", sc.Username()),
-	}
-	if version >= 0 {
-		labels = append(labels, fmt.Sprintf("skeg.io/image/version=%d", version))
-	}
 	dockerImages, err := dc.ListImagesWithLabels(labels)
 	if err != nil {
 		return images, err
@@ -546,7 +556,7 @@ func UserImages(dc DockerClient, sc SystemClient, io ImageOpts, version int) ([]
 		return images, err
 	}
 
-	uses := make(map[string]int)
+	uses := make(map[string][]string)
 	for _, dockerContainer := range dockerContainers {
 		image = dockerContainer.Image
 		_, tag := dc.ParseRepositoryTag(image)
@@ -555,9 +565,9 @@ func UserImages(dc DockerClient, sc SystemClient, io ImageOpts, version int) ([]
 		}
 
 		if _, ok := uses[image]; !ok {
-			uses[image] = 1
+			uses[image] = []string{dockerContainer.Names[0]}
 		} else {
-			uses[image] = uses[image] + 1
+			uses[image] = append(uses[image], dockerContainer.Names[0])
 		}
 	}
 
@@ -572,6 +582,7 @@ func UserImages(dc DockerClient, sc SystemClient, io ImageOpts, version int) ([]
 		imageUses, _ := uses[tags[0]]
 		images = append(images, UserImage{
 			tags[0],
+			len(imageUses),
 			imageUses,
 			dockerImage.Labels,
 			imageVersion,

@@ -1,6 +1,8 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type ImagesCommand struct {
 	Base    bool   `short:"b" long:"base" description:"List base images."`
@@ -8,6 +10,7 @@ type ImagesCommand struct {
 	Version string `short:"v" long:"version" description:"Version of environment type."`
 	Image   string `short:"i" long:"image" description:"Image to use for creating environment."`
 	Prune   bool   `short:"p" long:"prune" description:"Prune unused user images."`
+	All     bool   `short:"a" long:"all" description:"Show all images."`
 }
 
 var imagesCommand ImagesCommand
@@ -18,7 +21,7 @@ func (x *ImagesCommand) Execute(args []string) error {
 		return err
 	}
 
-	if len(imagesCommand.Type) > 0 || len(imagesCommand.Image) > 0 {
+	if imagesCommand.All || len(imagesCommand.Type) > 0 || len(imagesCommand.Image) > 0 {
 		sc, err := NewSystemClient()
 		if err != nil {
 			return err
@@ -45,7 +48,7 @@ func (x *ImagesCommand) Execute(args []string) error {
 			}
 			return nil
 		}
-		return listUserImages(userImages)
+		return listUserImages(userImages, imagesCommand.All)
 	}
 
 	baseImages, err := BaseImages(dc)
@@ -74,11 +77,14 @@ func listImages(images []*BaseImage) error {
 	return nil
 }
 
-func listUserImages(images []UserImage) error {
+func listUserImages(images []UserImage, showBase bool) error {
 	for _, im := range images {
 		fmt.Printf("%s (ver: %d) (%d envs)\n", im.Name, im.Version, im.EnvCount)
 		fmt.Printf("  build time: %s\n", im.Labels["skeg.io/image/buildtime"])
 		fmt.Printf("  time zone: %s\n", im.Labels["skeg.io/image/timezone"])
+		if showBase {
+			fmt.Printf("  base: %s\n", im.Labels["skeg.io/image/base"])
+		}
 	}
 	return nil
 }
