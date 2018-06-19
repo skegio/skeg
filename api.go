@@ -814,12 +814,17 @@ func Environments(dc DockerClient, sc SystemClient) (map[string]Environment, err
 				Type:          cPort.Type,
 			})
 		}
+		mounts := make([]map[string]string, 0)
+		for _, mount := range cont.Mounts {
+			mounts = append(mounts, map[string]string{mount.Source: mount.Destination})
+		}
 		containersByName[name] = &Container{
 			Name:    name,
 			Image:   cont.Image,
 			Running: strings.Contains(cont.Status, "Up"),
 			Ports:   ports,
 			Labels:  cont.Labels,
+			Mounts:  mounts,
 		}
 	}
 

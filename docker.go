@@ -32,11 +32,12 @@ type Port struct {
 }
 
 type Container struct {
-	Name    string            `json:"name"`
-	Image   string            `json:"image"`
-	Running bool              `json:"running"`
-	Ports   []Port            `json:"ports"`
-	Labels  map[string]string `json:"-"`
+	Name    string              `json:"name"`
+	Image   string              `json:"image"`
+	Running bool                `json:"running"`
+	Ports   []Port              `json:"ports"`
+	Labels  map[string]string   `json:"labels"`
+	Mounts  []map[string]string `json:"mounts"`
 }
 
 type CreateContainerOpts struct {
