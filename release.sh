@@ -1,15 +1,15 @@
 #!/bin/bash
 
-set -e
+set -ex
 
 if [[ ! $(type -P gox) ]]; then
     echo "Error: gox not found."
-    echo "To fix: run 'go get github.com/mitchellh/gox', and/or add \$GOPATH/bin to \$PATH"
+    echo "To fix: run 'go install github.com/mitchellh/gox@latest', and/or add \$GOPATH/bin to \$PATH"
     exit 1
 fi
 
-if [[ ! $(type -P github-release) ]]; then
-    echo "Error: github-release not found."
+if [[ ! $(type -P gh) ]]; then
+    echo "Error: github cli not found."
     exit 1
 fi
 
@@ -30,7 +30,7 @@ git tag $VER
 echo "Building $VER"
 echo
 
-gox -ldflags "-X main.version=$VER" -osarch="darwin/amd64 linux/amd64 windows/amd64"
+gox -ldflags "-X main.version=$VER" -osarch="darwin/amd64 linux/amd64 windows/amd64 linux/arm64 darwin/arm64"
 
 echo "* " > desc
 echo "" >> desc
@@ -48,7 +48,4 @@ git push --tags
 
 sleep 2
 
-github-release release $PRE_ARG --user skegio --repo skeg --tag $VER --name $VER --description desc
-github-release upload --user skegio --repo skeg --tag $VER --name skeg_darwin_amd64 --file skeg_darwin_amd64
-github-release upload --user skegio --repo skeg --tag $VER --name skeg_linux_amd64 --file skeg_linux_amd64
-github-release upload --user skegio --repo skeg --tag $VER --name skeg_windows_amd64.exe --file skeg_windows_amd64.exe
+gh release create $VER -t $VER -F desc skeg_*
